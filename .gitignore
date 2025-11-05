@@ -1,6 +1,7 @@
 # Default ignored files
 /shelf/
 /workspace.xml
+/.venv/lib
 
 .pio
 .vscode/.browse.c_cpp.db*
