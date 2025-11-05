@@ -2,7 +2,8 @@
     "ip_address": "127.0.0.1",
     "ableton_port": 8001,
     "td_port": 9001,
-    "osc_address": "/to/ableton2",
+    "osc_address1": "/to/ableton1",
+    "osc_address2": "/to/ableton2",
     "min_value": 0.0,
     "max_value": 100.0
 }
