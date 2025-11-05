@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Configuration OSC</title>
+</head>
+<body>
+    <h1>Configuration OSC</h1>
+    <form method="post">
+        <label>IP :</label>
+        <input type="text" name="ip_address" value="{{ config.ip_address }}"><br><br>
+
+        <label>Port TouchDesigner :</label>
+        <input type="number" name="td_port" value="{{ config.td_port }}"><br><br>
+
+        <label>Port Ableton :</label>
+        <input type="number" name="ableton_port" value="{{ config.ableton_port }}"><br><br>
+
+        <label>Adresse OSC :</label>
+        <input type="text" name="osc_address" value="{{ config.osc_address }}"><br><br>
+
+        <label>Min :</label>
+        <input type="number" step="any" name="min_value" value="{{ config.min_value }}"><br><br>
+
+        <label>Max :</label>
+        <input type="number" step="any" name="max_value" value="{{ config.max_value }}"><br><br>
+
+        <input type="submit" value="Sauvegarder">
+    </form>
+</body>
+</html>
