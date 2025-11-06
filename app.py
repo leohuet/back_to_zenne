@@ -1,6 +1,6 @@
 import threading
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import json
 import os
 from flask import Flask, render_template, request, redirect, url_for
@@ -18,6 +18,9 @@ app = Flask(__name__)
 CONFIG_FILE = "config.json"
 old_getmtime = 1000
 
+osc_thread = None
+osc_running = False
+
 ip = '127.0.0.1'
 td_port = 9001
 ableton_port = 8001
@@ -32,82 +35,6 @@ local_config = {
 }
 
 install_duration = 2
-
-# Informations d'authentification
-CID = '9D9E9DE1F0E437A6'
-presentday = datetime.now()
-format_presentday = presentday.strftime('%Y%m%d')
-yesterday = (presentday - timedelta(1)).strftime('%Y%m%d')
-date = f'{yesterday}0000'
-minutes = "{:02}".format((int(presentday.strftime('%M')) - install_duration) % 60)
-minutes_date = f'{format_presentday}{int(presentday.strftime("%H"))}{minutes}'
-hours = "{:02}".format((int(presentday.strftime('%H')) - install_duration) % 24)
-if (int(presentday.strftime('%H')) - install_duration) < 0:
-    hours_date = f'{yesterday}{hours}{presentday.strftime("%M")}'
-else:
-    hours_date = f'{format_presentday}{hours}{presentday.strftime("%M")}'
-days_date = (presentday - timedelta(install_duration)).strftime('%Y%m%d')
-days_date = f'{days_date}0000'
-week_date = (presentday - timedelta(7)).strftime('%Y%m%d')
-week_date = f'{week_date}0000'
-months = "{:02}".format((int(format_presentday[4:6]) - install_duration) % 12)
-months_date = f'{format_presentday[0:4]}{months}{format_presentday[6:]}'
-date_end = f'{format_presentday}0000'
-current_datehmin = presentday.strftime('%Y%m%d%H%M')
-
-# --- Sites & canaux ---
-sites = [
-    {
-        "name": "drogenbos",
-        "uid": "4A5190B93E170A87",
-        "histdata": "histdata0",
-        "channel": '"level"',
-        "from": hours_date,
-        "until": current_datehmin
-    },
-    {
-        "name": "quaidaa",
-        "uid": "9DD946B760E34493",
-        "histdata": "histdata0",
-        "channel": '"ch1", "ch9", "ch0", "ch8"',
-        "from": minutes_date,
-        "until": current_datehmin
-    },
-    {
-        "name": "veterinaires",
-        "uid": "4A26A91BCA0FE58C",
-        "histdata": "histdata0",
-        "channel": '"xch4"',
-        "from": week_date,
-        "until": date_end
-    },
-    {
-        "name": "buda",
-        "uid": "A35E8E5A539949A7",
-        "histdata": "histdata5",
-        "channel": '"ch0"',
-        "from": hours_date,
-        "until": current_datehmin
-    },
-    {
-        "name": "senneOUT",
-        "uid": "4B845F9C7151AC54",
-        "histdata": "histdata0",
-        "channel": '"temp", "conduct", "ph"',
-        "from": months_date,
-        "until": date_end
-    },
-
-]
-
-data_names = {
-    "drogenbos": ["level"],
-    "quaidaa": ["d_level", "g_level", "d_flowrate", "g_flowrate"],
-    "veterinaires": ["oxygen"],
-    "buda": ["flowrate"],
-    "senneOUT": ["temperature", "acidity", "conductivity"]
-
-}
 
 # --- Authentification ---
 user = os.getenv("FLOWBRU_USER")
@@ -128,6 +55,38 @@ for i in range(size_mean):
     quaidaa_for_mean.append(0.5)
     pluie_for_mean.append(0.5)
 
+
+def get_relative_dates():
+    global install_duration
+    fmt = "%Y%m%d%H%M"
+    fmt_day = "%Y%m%d0000"
+    now = datetime.now(timezone.utc) - timedelta(minutes=30)
+
+    # Périodes relatives
+    minutes_ago = now - timedelta(minutes=install_duration)
+    hours_ago = now - timedelta(hours=install_duration)
+    days_ago = now - timedelta(days=install_duration)
+    weeks_ago = now - timedelta(weeks=install_duration)
+    months_ago = now - timedelta(days=30 * install_duration)  # approximation : 1 mois = 30j
+
+    # Formats des sorties
+    minutes_date = minutes_ago.strftime(fmt)
+    hours_date = hours_ago.strftime(fmt)
+    days_date = days_ago.strftime(fmt_day)
+    weeks_date = weeks_ago.strftime(fmt_day)
+    months_date = months_ago.strftime(fmt_day)
+    date_end = now.strftime(fmt_day)
+    current_datehmin = now.strftime(fmt)
+
+    return {
+        "minutes": minutes_date,
+        "hours": hours_date,
+        "days": days_date,
+        "weeks": weeks_date,
+        "months": months_date,
+        "date_end": date_end,
+        "current_date_h_min": current_datehmin
+    }
 
 def moyenne_glissante(data_array, new_value):
     global size_mean
@@ -196,16 +155,10 @@ def retrieve_data():
 
 
 def get_last_data():
-    presentday = datetime.now()
-    format_presentday = presentday.strftime('%Y%m%d')
-    minutes = "{:02}".format((int(presentday.strftime('%M')) - install_duration) % 60)
-    minutes_date = f'{format_presentday}{int(presentday.strftime("%H"))}{minutes}'
-    current_datehmin = presentday.strftime('%Y%m%d%H%M')
-    print(minutes_date)
-    print(current_datehmin)
+    new_dates_dict = get_relative_dates()
 
-    sites[1]["from"] = minutes_date
-    sites[1]["from"] = current_datehmin
+    sites[1]["from"] = new_dates_dict["minutes"]
+    sites[1]["from"] = new_dates_dict["current_date_h_min"]
 
     # --- Récupération des données pour chaque site ---
     for site in sites:
@@ -281,16 +234,34 @@ def save_config(config_dict):
 
 # === THREAD OSC ===
 def osc_sender():
-    global td_client, ableton_client, old_getmtime, local_config, df
+    global td_client, ableton_client, old_getmtime, local_config, df, osc_running
     print("OSC thread démarré.")
     time_index = 0
-    while True:
+    restart = False
+
+    df_drogenbos = dataframes.get("drogenbos")
+    df_quaidaa = dataframes.get("quaidaa")
+    df_buda = dataframes.get("buda")
+
+    len_drogenbos = len(df_drogenbos)
+    len_quaidaa = len(df_quaidaa)
+    len_buda = len(df_buda)
+
+    drogenbos_interpol = (60 * install_duration) / len_drogenbos
+    quaidaa_interpol = (60 * install_duration) / len_quaidaa
+    buda_interpol = (60 * install_duration) / len_buda
+    print(drogenbos_interpol)
+    print(quaidaa_interpol)
+    print(buda_interpol)
+
+    while osc_running:
         if os.path.getmtime(CONFIG_FILE) != old_getmtime:
             old_getmtime = os.path.getmtime(CONFIG_FILE)
             config = load_config()  # recharge les paramètres à chaque boucle
 
             osc_address1 = config["osc_address1"]
             osc_address2 = config["osc_address2"]
+            osc_address3 = config["osc_address3"]
             min_val = float(config["min_value"])
             max_val = float(config["max_value"])
 
@@ -298,14 +269,11 @@ def osc_sender():
         else:
             osc_address1 = local_config["osc_address1"]
             osc_address2 = local_config["osc_address2"]
+            osc_address3 = local_config["osc_address3"]
             min_val = float(local_config["min_value"])
             max_val = float(local_config["max_value"])
 
-        df_drogenbos = dataframes.get("drogenbos")
-        df_quaidaa = dataframes.get("quaidaa")
-        df_buda = dataframes.get("buda")
-
-        if time_index == 0:
+        if time_index == 0 and restart:
             print("restart")
             get_last_data()
             time.sleep(5)
@@ -313,34 +281,36 @@ def osc_sender():
         new_index = int(time_index/5) - 1
         if new_index < 0:
             new_index = 0
-        print(new_index)
-        buda_flowrate_data = df_buda['flowrate'][new_index] * ((4-(time_index % 5))/4) + df_buda['flowrate'][new_index+1] * ((time_index % 5)/4)
-        buda_mapped_data = buda_flowrate_data
+
+
 
         drogenbos_level_data = df_drogenbos['level'][time_index]
         drogenbos_mapped_data = (drogenbos_level_data * (max_val - min_val) + min_val) / 100
-        drogenbos_mapped_data = moyenne_glissante(drogenbos_for_mean, drogenbos_mapped_data)
 
-        quaidaa_level_data = df_quaidaa['d_level'][time_index]
+        quaidaa_level_data = df_quaidaa['d_level'][time_index] * (((quaidaa_interpol-1) - (time_index % quaidaa_interpol))
+                            / (quaidaa_interpol-1)) + df_quaidaa['d_level'][time_index + 1] * ((time_index % quaidaa_interpol) / (quaidaa_interpol-1))
         quaidaa_mapped_data = (quaidaa_level_data * (max_val - min_val) + min_val) / 100
-        quaidaa_mapped_data = moyenne_glissante(quaidaa_for_mean, quaidaa_mapped_data)
 
-        ableton_client.send_message(osc_address1, buda_mapped_data)
-        ableton_client.send_message(osc_address2, quaidaa_mapped_data)
+        buda_flowrate_data = df_buda['flowrate'][new_index] * ((4 - (time_index % 5)) / 4) + df_buda['flowrate'][new_index + 1] * ((time_index % 5) / 4)
+        buda_mapped_data = buda_flowrate_data
 
-        print(f"Envoi OSC {osc_address1}: {buda_mapped_data}")
-        # print(f"Envoi OSC {osc_address2}: {quaidaa_mapped_data}")
+        ableton_client.send_message(osc_address1, drogenbos_mapped_data)
+        ableton_client.send_message(osc_address2, buda_mapped_data)
+        ableton_client.send_message(osc_address3, quaidaa_mapped_data)
+
+        # print(f"Envoi OSC {osc_address1}: {buda_mapped_data}")
+        print(f"Envoi OSC {osc_address2}: {quaidaa_mapped_data}")
 
         time.sleep(1)
-
-        time_index = (time_index + 1) % (60 * install_duration)
+        if time_index == (60 * 1) - 1:
+            restart = True
+        time_index = (time_index + 1) % (60 * 1)
 
 
 # === INTERFACE FLASK ===
 @app.route("/", methods=["GET", "POST"])
 def index():
     config = load_config()
-
     if request.method == "POST":
         config["ip_address"] = request.form["ip_address"]
         config["td_port"] = int(request.form["td_port"])
@@ -350,11 +320,86 @@ def index():
         config["max_value"] = float(request.form["max_value"])
         save_config(config)
         return redirect(url_for("index"))
-
     return render_template("index.html", config=config)
 
 
+@app.route("/start_osc", methods=["POST"])
+def start_osc():
+    global osc_thread, osc_running
+    if not osc_running:
+        osc_running = True
+        osc_thread = threading.Thread(target=osc_sender, daemon=True)
+        osc_thread.start()
+    return redirect(url_for("index"))
+
+
+@app.route("/stop_osc", methods=["POST"])
+def stop_osc():
+    global osc_running
+    osc_running = False
+    return redirect(url_for("index"))
+
+
 if __name__ == "__main__":
+    # Informations d'authentification
+    CID = '9D9E9DE1F0E437A6'
+    # Dates et formats de base
+    dates_dict = get_relative_dates()
+
+    # --- Sites & canaux ---
+    sites = [
+        {
+            "name": "drogenbos",
+            "uid": "4A5190B93E170A87",
+            "histdata": "histdata0",
+            "channel": '"level"',
+            "from": dates_dict["hours"],
+            "until": dates_dict["current_date_h_min"]
+        },
+        {
+            "name": "quaidaa",
+            "uid": "9DD946B760E34493",
+            "histdata": "histdata0",
+            "channel": '"ch1", "ch9", "ch0", "ch8"',
+            "from": dates_dict["minutes"],
+            "until": dates_dict["current_date_h_min"]
+        },
+        {
+            "name": "veterinaires",
+            "uid": "4A26A91BCA0FE58C",
+            "histdata": "histdata0",
+            "channel": '"xch4"',
+            "from": dates_dict["weeks"],
+            "until": dates_dict["date_end"]
+        },
+        {
+            "name": "buda",
+            "uid": "A35E8E5A539949A7",
+            "histdata": "histdata5",
+            "channel": '"ch0"',
+            "from": dates_dict["hours"],
+            "until": dates_dict["current_date_h_min"]
+        },
+        {
+            "name": "senneOUT",
+            "uid": "4B845F9C7151AC54",
+            "histdata": "histdata0",
+            "channel": '"temp", "conduct", "ph"',
+            "from": dates_dict["months"],
+            "until": dates_dict["date_end"]
+        },
+
+    ]
+
+    data_names = {
+        "drogenbos": ["level"],
+        "quaidaa": ["d_level", "g_level", "d_flowrate", "g_flowrate"],
+        "veterinaires": ["oxygen"],
+        "buda": ["flowrate"],
+        "senneOUT": ["temperature", "acidity", "conductivity"]
+
+    }
+
     # --- Stockage des DataFrames ---
     dataframes = {}
 
@@ -367,10 +412,6 @@ if __name__ == "__main__":
     # Clients OSC
     td_client = udp_client.SimpleUDPClient(ip, td_port)
     ableton_client = udp_client.SimpleUDPClient(ip, ableton_port)
-
-    # Démarre le thread OSC
-    osc_thread = threading.Thread(target=osc_sender, daemon=True)
-    osc_thread.start()
 
     # Lance Flask
     app.run(host="0.0.0.0", port=8000, debug=False)

@@ -4,6 +4,7 @@
     "td_port": 9001,
     "osc_address1": "/to/ableton1",
     "osc_address2": "/to/ableton2",
+    "osc_address3": "/to/ableton3",
     "min_value": 0.0,
     "max_value": 100.0
 }
