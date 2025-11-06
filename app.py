@@ -39,15 +39,21 @@ presentday = datetime.now()
 format_presentday = presentday.strftime('%Y%m%d')
 yesterday = (presentday - timedelta(1)).strftime('%Y%m%d')
 date = f'{yesterday}0000'
-hours = 24 - install_duration
-hours_date = f'{yesterday}{hours}00'
+minutes = "{:02}".format((int(presentday.strftime('%M')) - install_duration) % 60)
+minutes_date = f'{format_presentday}{int(presentday.strftime("%H"))}{minutes}'
+hours = "{:02}".format((int(presentday.strftime('%H')) - install_duration) % 24)
+if (int(presentday.strftime('%H')) - install_duration) < 0:
+    hours_date = f'{yesterday}{hours}{presentday.strftime("%M")}'
+else:
+    hours_date = f'{format_presentday}{hours}{presentday.strftime("%M")}'
 days_date = (presentday - timedelta(install_duration)).strftime('%Y%m%d')
 days_date = f'{days_date}0000'
 week_date = (presentday - timedelta(7)).strftime('%Y%m%d')
 week_date = f'{week_date}0000'
-months = (int(format_presentday[4:6]) - install_duration) % 12
-months_date = f'{format_presentday[0:4]}0{months}{format_presentday[6:]}'
+months = "{:02}".format((int(format_presentday[4:6]) - install_duration) % 12)
+months_date = f'{format_presentday[0:4]}{months}{format_presentday[6:]}'
 date_end = f'{format_presentday}0000'
+current_datehmin = presentday.strftime('%Y%m%d%H%M')
 
 # --- Sites & canaux ---
 sites = [
@@ -57,15 +63,15 @@ sites = [
         "histdata": "histdata0",
         "channel": '"level"',
         "from": hours_date,
-        "until": date_end
+        "until": current_datehmin
     },
     {
         "name": "quaidaa",
         "uid": "9DD946B760E34493",
         "histdata": "histdata0",
-        "channel": '"ch1"',
-        "from": hours_date,
-        "until": date_end
+        "channel": '"ch1", "ch9", "ch0", "ch8"',
+        "from": minutes_date,
+        "until": current_datehmin
     },
     {
         "name": "veterinaires",
@@ -81,7 +87,7 @@ sites = [
         "histdata": "histdata5",
         "channel": '"ch0"',
         "from": hours_date,
-        "until": date_end
+        "until": current_datehmin
     },
     {
         "name": "senneOUT",
@@ -95,10 +101,10 @@ sites = [
 ]
 
 data_names = {
-    "drogenbos": ["level", "level", "level"],
-    "quaidaa": ["level", "level", "level"],
-    "veterinaires": ["oxygen", "level", "level"],
-    "buda": ["flowrate", "level", "level"],
+    "drogenbos": ["level"],
+    "quaidaa": ["d_level", "g_level", "d_flowrate", "g_flowrate"],
+    "veterinaires": ["oxygen"],
+    "buda": ["flowrate"],
     "senneOUT": ["temperature", "acidity", "conductivity"]
 
 }
@@ -169,9 +175,62 @@ def retrieve_data():
                     # df[j] = (df[j] - min(df[j])) / (max(df[j]) - min(df[j]))
                     df = df[df[j].notna()]
                     df[j] = df[j].round(2)
-                df.rename(columns={1: data_names[site['name']][0]}, inplace=True)
-                df.rename(columns={2: data_names[site['name']][1]}, inplace=True)
-                df.rename(columns={3: data_names[site['name']][2]}, inplace=True)
+                    df.rename(columns={j: data_names[site['name']][j-1]}, inplace=True)
+
+                # Ajouter le nom du site en colonne (optionnel mais utile pour concat)
+                df['site'] = site['name']
+
+                # Correction des dates
+                df['date'] = df['date'].apply(corriger_date_brute)
+                df = df[df['date'].notna()]
+                df['date'] = pd.to_datetime(df['date'], format='%Y%m%d%H%M', errors='coerce')
+                dataframes[site["name"]] = df
+                print(f"{site['name'].capitalize()} - {len(df)} lignes")
+                print(df.head(), '\n')
+            except Exception as e:
+                print(f"Erreur JSON ou DataFrame pour {site['name']}: {e}")
+                # print(response.text)
+        else:
+            print(f"Erreur HTTP pour {site['name']}: {response.status_code}")
+            print(response.text)
+
+
+def get_last_data():
+    presentday = datetime.now()
+    format_presentday = presentday.strftime('%Y%m%d')
+    minutes = "{:02}".format((int(presentday.strftime('%M')) - install_duration) % 60)
+    minutes_date = f'{format_presentday}{int(presentday.strftime("%H"))}{minutes}'
+    current_datehmin = presentday.strftime('%Y%m%d%H%M')
+    print(minutes_date)
+    print(current_datehmin)
+
+    sites[1]["from"] = minutes_date
+    sites[1]["from"] = current_datehmin
+
+    # --- Récupération des données pour chaque site ---
+    for site in sites:
+        if site['name'] != "quaidaa":
+            continue
+        url = f'https://www.flowbru.eu/api/1/customers/{CID}/sites/{site["uid"]}/{site["histdata"]}?json={{"select":[{site["channel"]}],"from":"{site["from"]}","until":"{site["until"]}"}} '
+        print(url)
+        response = requests.get(url, headers=my_headers)
+
+        if response.status_code == 200:
+            try:
+                data = response.json()
+                df = pd.DataFrame(data)  # adapte ici si la structure est différente
+                # Nettoyage : convertir le timestamp s'il existe
+                if 't' in df.columns:
+                    df['timestamp'] = pd.to_datetime(df['t'], unit='s')
+                    df = df.drop(columns=['t'])  # On garde que "timestamp", plus lisible
+
+                df.rename(columns={0: "date"}, inplace=True)
+                for j in range(1, len(df.columns)):
+                    df[j] = pd.to_numeric(df[j], errors='coerce')
+                    df = df[df[j].notna()]
+                    df[j] = df[j].round(2)
+                    df.rename(columns={j: data_names[site['name']][j - 1]}, inplace=True)
+
                 # Ajouter le nom du site en colonne (optionnel mais utile pour concat)
                 df['site'] = site['name']
 
@@ -225,7 +284,6 @@ def osc_sender():
     global td_client, ableton_client, old_getmtime, local_config, df
     print("OSC thread démarré.")
     time_index = 0
-    print("sending first hour")
     while True:
         if os.path.getmtime(CONFIG_FILE) != old_getmtime:
             old_getmtime = os.path.getmtime(CONFIG_FILE)
@@ -246,14 +304,24 @@ def osc_sender():
         df_drogenbos = dataframes.get("drogenbos")
         df_quaidaa = dataframes.get("quaidaa")
         df_buda = dataframes.get("buda")
-        buda_flowrate_data = df_buda['flowrate'][int(time_index/5)] * ((4-(time_index % 5))/4) + df_buda['flowrate'][int(time_index/5) + 1] * ((time_index % 5)/4)
+
+        if time_index == 0:
+            print("restart")
+            get_last_data()
+            time.sleep(5)
+
+        new_index = int(time_index/5) - 1
+        if new_index < 0:
+            new_index = 0
+        print(new_index)
+        buda_flowrate_data = df_buda['flowrate'][new_index] * ((4-(time_index % 5))/4) + df_buda['flowrate'][new_index+1] * ((time_index % 5)/4)
         buda_mapped_data = buda_flowrate_data
 
         drogenbos_level_data = df_drogenbos['level'][time_index]
         drogenbos_mapped_data = (drogenbos_level_data * (max_val - min_val) + min_val) / 100
         drogenbos_mapped_data = moyenne_glissante(drogenbos_for_mean, drogenbos_mapped_data)
 
-        quaidaa_level_data = df_quaidaa['level'][time_index]
+        quaidaa_level_data = df_quaidaa['d_level'][time_index]
         quaidaa_mapped_data = (quaidaa_level_data * (max_val - min_val) + min_val) / 100
         quaidaa_mapped_data = moyenne_glissante(quaidaa_for_mean, quaidaa_mapped_data)
 
@@ -265,9 +333,7 @@ def osc_sender():
 
         time.sleep(1)
 
-        time_index += 1
-        if time_index == 120:
-            break
+        time_index = (time_index + 1) % (60 * install_duration)
 
 
 # === INTERFACE FLASK ===
