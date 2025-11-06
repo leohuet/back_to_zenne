@@ -22,8 +22,9 @@ osc_thread = None
 osc_running = False
 
 ip = '127.0.0.1'
-td_port = 9001
 ableton_port = 8001
+abletonOSC_port = 11000
+td_port = 9001
 
 local_config = {
     "ip_address": "127.0.0.1",
@@ -131,7 +132,7 @@ def retrieve_data():
                 df.rename(columns={0: "date"}, inplace=True)
                 for j in range(1, len(df.columns)):
                     df[j] = pd.to_numeric(df[j], errors='coerce')
-                    # df[j] = (df[j] - min(df[j])) / (max(df[j]) - min(df[j]))
+                    df[j] = (df[j] - min(df[j])) / (max(df[j]) - min(df[j]))
                     df = df[df[j].notna()]
                     df[j] = df[j].round(2)
                     df.rename(columns={j: data_names[site['name']][j-1]}, inplace=True)
@@ -158,7 +159,7 @@ def get_last_data():
     new_dates_dict = get_relative_dates()
 
     sites[1]["from"] = new_dates_dict["minutes"]
-    sites[1]["from"] = new_dates_dict["current_date_h_min"]
+    sites[1]["until"] = new_dates_dict["current_date_h_min"]
 
     # --- Récupération des données pour chaque site ---
     for site in sites:
@@ -181,6 +182,7 @@ def get_last_data():
                 for j in range(1, len(df.columns)):
                     df[j] = pd.to_numeric(df[j], errors='coerce')
                     df = df[df[j].notna()]
+                    df[j] = (df[j] - min(df[j])) / (max(df[j]) - min(df[j]))
                     df[j] = df[j].round(2)
                     df.rename(columns={j: data_names[site['name']][j - 1]}, inplace=True)
 
@@ -210,11 +212,41 @@ def load_config():
     else:
         base_config = {
             "ip_address": "127.0.0.1",
-            "td_port": 9001,
             "ableton_port": 8001,
-            "osc_address": "/value",
-            "min_value": 0.0,
-            "max_value": 100.0
+            "madmapper_port": 9001,
+            "drogengos_address1": "/viangros/temp1",
+            "drogenbos_level_min_value": 0.0,
+            "drogenbos_level_max_value": 1.0,
+            "viangros_address1": "/viangros/temp2",
+            "viangros_temp_min_value": 0.0,
+            "viangros_temp_max_value": 1.0,
+            "viangros_address2": "/viangros/temp3",
+            "viangros_conduct_min_value": 0.0,
+            "viangros_conduct_max_value": 1.0,
+            "viangros_address3": "/viangros/temp4",
+            "viangros_ph_min_value": 0.0,
+            "viangros_ph_max_value": 1.0,
+            "quaidaa_address1": "/viangros/temp5",
+            "quaidaa_level_min_value": 0.0,
+            "quaidaa_level_max_value": 1.0,
+            "quaidaa_address2": "/viangros/temp6",
+            "quaidaa_flowrate_min_value": 0.0,
+            "quaidaa_flowrate_max_value": 1.0,
+            "veterinaires_address1": "/viangros/temp7",
+            "veterinaires_oxygen_min_value": 0.0,
+            "veterinaires_oxygen_max_value": 1.0,
+            "buda_address1": "/viangros/temp8",
+            "buda_flowrate_min_value": 0.0,
+            "buda_flowrate_max_value": 1.0,
+            "senneout_address1": "/viangros/temp9",
+            "senneout_temp_min_value": 0.0,
+            "senneout_temp_max_value": 1.0,
+            "senneout_address2": "/viangros/temp10",
+            "senneout_conduct_min_value": 0.0,
+            "senneout_conduct_max_value": 1.0,
+            "senneout_address3": "/viangros/temp11",
+            "senneout_ph_min_value": 0.0,
+            "senneout_ph_max_value": 1.0
         }
         save_config(base_config)
         return base_config
@@ -236,76 +268,96 @@ def save_config(config_dict):
 def osc_sender():
     global td_client, ableton_client, old_getmtime, local_config, df, osc_running
     print("OSC thread démarré.")
+    raw_time_index = 0
     time_index = 0
     restart = False
+    frequency = 1
 
     df_drogenbos = dataframes.get("drogenbos")
+    df_viangros = dataframes.get("viangros")
     df_quaidaa = dataframes.get("quaidaa")
     df_buda = dataframes.get("buda")
 
     len_drogenbos = len(df_drogenbos)
+    len_viangros = len(df_viangros)
     len_quaidaa = len(df_quaidaa) - 1
     len_buda = len(df_buda)
 
-    drogenbos_interpol = (60 * install_duration) / len_drogenbos
-    quaidaa_interpol = (60 * install_duration) / len_quaidaa
-    buda_interpol = (60 * install_duration) / len_buda
-    print(drogenbos_interpol)
-    print(quaidaa_interpol)
-    print(buda_interpol)
+    drogenbos_interpol = math.floor((60 * install_duration) / len_drogenbos)
+    viangros_interpol = math.floor(len_viangros / (60 * install_duration))
+    quaidaa_interpol = math.floor((60 * install_duration) / len_quaidaa)
+    buda_interpol = math.floor((60 * install_duration) / len_buda)
+    print(viangros_interpol)
+
+    ableton_control.send_message('/live/song/start_playing', None)
 
     while osc_running:
         if os.path.getmtime(CONFIG_FILE) != old_getmtime:
             old_getmtime = os.path.getmtime(CONFIG_FILE)
             config = load_config()  # recharge les paramètres à chaque boucle
-
-            osc_address1 = config["osc_address1"]
-            osc_address2 = config["osc_address2"]
-            osc_address3 = config["osc_address3"]
-            min_val = float(config["min_value"])
-            max_val = float(config["max_value"])
-
             local_config = config
-        else:
-            osc_address1 = local_config["osc_address1"]
-            osc_address2 = local_config["osc_address2"]
-            osc_address3 = local_config["osc_address3"]
-            min_val = float(local_config["min_value"])
-            max_val = float(local_config["max_value"])
 
-        if time_index == 0 and restart:
+        if restart:
             print("restart")
+            restart = False
             get_last_data()
             time.sleep(5)
 
+            ableton_control.send_message('/live/song/stop_playing', None)
+            time.sleep(1)
+            ableton_control.send_message('/live/song/stop_playing', None)
+
+            df_drogenbos = dataframes.get("drogenbos")
+            df_quaidaa = dataframes.get("quaidaa")
+            df_buda = dataframes.get("buda")
+
+            len_drogenbos = len(df_drogenbos)
+            len_quaidaa = len(df_quaidaa) - 1
+            len_buda = len(df_buda)
+
+            drogenbos_interpol = (60 * install_duration) / len_drogenbos
+            quaidaa_interpol = (60 * install_duration) / len_quaidaa
+            buda_interpol = (60 * install_duration) / len_buda
+            print(drogenbos_interpol)
+            print(quaidaa_interpol)
+            print(buda_interpol)
+            time.sleep(2)
+            ableton_control.send_message('/live/song/start_playing', None)
+            time_index = 0
+            raw_time_index = 0
+
+        viangros_index = time_index*viangros_interpol
         buda_index = min(math.floor(time_index/buda_interpol) + 1, len_buda-1)
         quaidaa_index = min(math.floor(time_index/quaidaa_interpol) + 1, len_quaidaa)
-        print(f'buda: {buda_index}, quaidaa: {quaidaa_index}')
 
 
-        drogenbos_level_data = df_drogenbos['level'][time_index]
-        drogenbos_mapped_data = (drogenbos_level_data * (max_val - min_val) + min_val) / 100
+        # drogenbos_level_data = df_drogenbos['level'][time_index]
+        # drogenbos_mapped_data = (drogenbos_level_data * (max_val1 - min_val1) + min_val1).round(2)
+
+        viangros_temp_data = df_viangros['temperature'][viangros_index]
+        viangros_mapped_data = (viangros_temp_data * (local_config["viangros_temp_max"] - local_config["viangros_temp_min"]) + local_config["viangros_temp_min"]).round(2)
 
         quaidaa_level_data = df_quaidaa['d_level'][quaidaa_index-1] * (((quaidaa_interpol-1) - (time_index % quaidaa_interpol))
                             / (quaidaa_interpol-1)) + df_quaidaa['d_level'][quaidaa_index] * ((time_index % quaidaa_interpol) / (quaidaa_interpol-1))
-        quaidaa_mapped_data = (quaidaa_level_data * (max_val - min_val) + min_val) / 100
+        quaidaa_mapped_data = (quaidaa_level_data * (local_config["quaidaa_level_max"] - local_config["quaidaa_level_min"]) + local_config["quaidaa_level_min"]).round(2)
 
         buda_flowrate_data = df_buda['flowrate'][buda_index-1] * (((buda_interpol-1) - (time_index % buda_interpol)) /
                             (buda_interpol-1)) + df_buda['flowrate'][buda_index] * ((time_index % buda_interpol) / (buda_interpol-1))
-        buda_mapped_data = buda_flowrate_data
+        buda_mapped_data = (buda_flowrate_data * (local_config["buda_flowrate_max"] - local_config["buda_flowrate_min"]) + local_config["buda_flowrate_min"]).round(2)
 
-        ableton_client.send_message(osc_address1, drogenbos_mapped_data)
-        ableton_client.send_message(osc_address2, buda_mapped_data)
-        ableton_client.send_message(osc_address3, quaidaa_mapped_data)
+        ableton_client.send_message(local_config["viangros_address1"], viangros_mapped_data)
+        ableton_client.send_message(local_config["buda_address1"], buda_mapped_data)
+        ableton_client.send_message(local_config["quaidaa_address1"], quaidaa_mapped_data)
 
-        print(f"Envoi OSC {osc_address1}: {buda_mapped_data}")
-        print(f"Envoi OSC {osc_address2}: {quaidaa_mapped_data}")
-
-        time.sleep(1)
-        if time_index == (60 * install_duration) - 1:
-            time_index = 0
+        print(f'Envoi OSC {local_config["viangros_address1"]}: {viangros_mapped_data}')
+        print(f'Envoi OSC {local_config["buda_address1"]}: {quaidaa_mapped_data}')
+        print(f'Envoi OSC {local_config["quaidaa_address1"]}: {buda_mapped_data}')
+        time.sleep(1 / frequency)
+        if raw_time_index == (60 * install_duration) - 1:
             restart = True
-        time_index = (time_index + 1) % (60 * install_duration)
+        else:
+            raw_time_index = (raw_time_index + (1/frequency)) % (60 * install_duration)
+            time_index = math.floor(raw_time_index)
 
 
 # === INTERFACE FLASK ===
@@ -314,11 +366,41 @@ def index():
     config = load_config()
     if request.method == "POST":
         config["ip_address"] = request.form["ip_address"]
-        config["td_port"] = int(request.form["td_port"])
         config["ableton_port"] = int(request.form["ableton_port"])
-        config["osc_address"] = request.form["osc_address"]
-        config["min_value"] = float(request.form["min_value"])
-        config["max_value"] = float(request.form["max_value"])
+        config["madmapper_port"] = int(request.form["madmapper_port"])
+        config["drogenbos_address1"] = request.form["drogenbos_address1"]
+        config["drogenbos_level_min"] = float(request.form["drogenbos_level_min"])
+        config["drogenbos_level_max"] = float(request.form["drogenbos_level_max"])
+        config["viangros_address1"] = request.form["viangros_address1"]
+        config["viangros_temp_min"] = float(request.form["viangros_temp_min"])
+        config["viangros_temp_max"] = float(request.form["viangros_temp_max"])
+        config["viangros_address2"] = request.form["viangros_address2"]
+        config["viangros_conduct_min"] = float(request.form["viangros_conduct_min"])
+        config["viangros_conduct_max"] = float(request.form["viangros_conduct_max"])
+        config["viangros_address3"] = request.form["viangros_address3"]
+        config["viangros_ph_min"] = float(request.form["viangros_ph_min"])
+        config["viangros_ph_max"] = float(request.form["viangros_ph_max"])
+        config["quaidaa_address1"] = request.form["quaidaa_address1"]
+        config["quaidaa_level_min"] = float(request.form["quaidaa_level_min"])
+        config["quaidaa_level_max"] = float(request.form["quaidaa_level_max"])
+        config["quaidaa_address2"] = request.form["quaidaa_address2"]
+        config["quaidaa_flowrate_min"] = float(request.form["quaidaa_flowrate_min"])
+        config["quaidaa_flowrate_max"] = float(request.form["quaidaa_flowrate_max"])
+        config["veterinaires_address1"] = request.form["veterinaires_address1"]
+        config["veterinaires_oxygen_min"] = float(request.form["veterinaires_oxygen_min"])
+        config["veterinaires_oxygen_max"] = float(request.form["veterinaires_oxygen_max"])
+        config["buda_address1"] = request.form["buda_address1"]
+        config["buda_flowrate_min"] = float(request.form["buda_flowrate_min"])
+        config["buda_flowrate_max"] = float(request.form["buda_flowrate_max"])
+        config["senneout_address1"] = request.form["senneout_address1"]
+        config["senneout_temp_min"] = float(request.form["senneout_temp_min"])
+        config["senneout_temp_max"] = float(request.form["senneout_temp_max"])
+        config["senneout_address2"] = request.form["senneout_address2"]
+        config["senneout_conduct_min"] = float(request.form["senneout_conduct_min"])
+        config["senneout_conduct_max"] = float(request.form["senneout_conduct_max"])
+        config["senneout_address3"] = request.form["senneout_address3"]
+        config["senneout_ph_min"] = float(request.form["senneout_ph_min"])
+        config["senneout_ph_max"] = float(request.form["senneout_ph_max"])
         save_config(config)
         return redirect(url_for("index"))
     return render_template("index.html", config=config)
@@ -342,6 +424,9 @@ def stop_osc():
 
 
 if __name__ == "__main__":
+    # Open Ableton Live
+    # os.system('open "/Users/poire/Desktop/CODE/testQuitAbleton/test Project/test2.als"')
+    # time.sleep(20)
     # Informations d'authentification
     CID = '9D9E9DE1F0E437A6'
     # Dates et formats de base
@@ -356,6 +441,14 @@ if __name__ == "__main__":
             "channel": '"level"',
             "from": dates_dict["hours"],
             "until": dates_dict["current_date_h_min"]
+        },
+        {
+            "name": "viangros",
+            "uid": "4B8483DD3257BAD9",
+            "histdata": "histdata0",
+            "channel": '"temp", "conduct", "ph"',
+            "from": dates_dict["days"],
+            "until": dates_dict["date_end"]
         },
         {
             "name": "quaidaa",
@@ -394,10 +487,11 @@ if __name__ == "__main__":
 
     data_names = {
         "drogenbos": ["level"],
+        "viangros": ["temperature", "conductivity", "acidity"],
         "quaidaa": ["d_level", "g_level", "d_flowrate", "g_flowrate"],
         "veterinaires": ["oxygen"],
         "buda": ["flowrate"],
-        "senneOUT": ["temperature", "acidity", "conductivity"]
+        "senneOUT": ["temperature", "conductivity", "acidity"]
 
     }
 
@@ -408,11 +502,14 @@ if __name__ == "__main__":
 
     config = load_config()
     ip = config["ip_address"]
-    td_port = int(config["td_port"])
+    td_port = int(config["madmapper_port"])
     ableton_port = int(config["ableton_port"])
+
     # Clients OSC
     td_client = udp_client.SimpleUDPClient(ip, td_port)
     ableton_client = udp_client.SimpleUDPClient(ip, ableton_port)
+    ableton_control = udp_client.SimpleUDPClient(ip, abletonOSC_port)
+    ableton_control.send_message('/live/song/stop_playing', None)
 
     # Lance Flask
     app.run(host="0.0.0.0", port=8000, debug=False)

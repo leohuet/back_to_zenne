@@ -5,7 +5,7 @@
     <title>Configuration OSC</title>
 </head>
 <body>
-    <h1>Configuration OSC</h1>
+    <h1>Back to Zenne</h1>
 
     <!-- Boutons de contrôle -->
     <form action="{{ url_for('start_osc') }}" method="post">
@@ -14,24 +14,101 @@
 
     <hr>
 
+    <h2>Paramètres OSC</h2>
     <form method="post">
         <label>IP :</label>
         <input type="text" name="ip_address" value="{{ config.ip_address }}"><br><br>
 
-        <label>Port TouchDesigner :</label>
-        <input type="number" name="td_port" value="{{ config.td_port }}"><br><br>
+        <label>Port MadMapper :</label>
+        <input type="number" name="td_port" value="{{ config.madmapper_port }}"><br><br>
 
         <label>Port Ableton :</label>
         <input type="number" name="ableton_port" value="{{ config.ableton_port }}"><br><br>
 
-        <label>Adresse OSC :</label>
-        <input type="text" name="osc_address" value="{{ config.osc_address }}"><br><br>
+        <h2>Filtrage des données</h2>
 
+        <h3>Drogenbos</h3>
+        <label>level OSC address:</label>
+        <input type="text" name="drogenbos_address1" value="{{ config.drogenbos_address1 }}">
         <label>Min :</label>
-        <input type="number" step="any" name="min_value" value="{{ config.min_value }}"><br><br>
-
+        <input type="number" step="any" name="drogenbos_level_min" value="{{ config.drogenbos_level_min }}">
         <label>Max :</label>
-        <input type="number" step="any" name="max_value" value="{{ config.max_value }}"><br><br>
+        <input type="number" step="any" name="drogenbos_level_max" value="{{ config.drogenbos_level_max }}"><br><br>
+
+        <h3>Viangros</h3>
+        <label>temperature OSC address:</label>
+        <input type="text" name="viangros_address1" value="{{ config.viangros_address1 }}">
+        <label>Min :</label>
+        <input type="number" step="any" name="viangros_temp_min" value="{{ config.viangros_temp_min }}">
+        <label>Max :</label>
+        <input type="number" step="any" name="viangros_temp_max" value="{{ config.viangros_temp_max }}"><br><br>
+
+        <label>conductivity OSC address:</label>
+        <input type="text" name="viangros_address2" value="{{ config.viangros_address2 }}">
+        <label>Min :</label>
+        <input type="number" step="any" name="viangros_conduct_min" value="{{ config.viangros_conduct_min }}">
+        <label>Max :</label>
+        <input type="number" step="any" name="viangros_conduct_max" value="{{ config.viangros_conduct_max }}"><br><br>
+
+        <label>acidity OSC address:</label>
+        <input type="text" name="viangros_address3" value="{{ config.viangros_address3 }}">
+        <label>Min :</label>
+        <input type="number" step="any" name="viangros_ph_min" value="{{ config.viangros_ph_min }}">
+        <label>Max :</label>
+        <input type="number" step="any" name="viangros_ph_max" value="{{ config.viangros_ph_max }}"><br><br>
+
+        <h3>Quai d'Aa</h3>
+        <label>Level OSC address:</label>
+        <input type="text" name="quaidaa_address1" value="{{ config.quaidaa_address1 }}">
+        <label>Min :</label>
+        <input type="number" step="any" name="quaidaa_level_min" value="{{ config.quaidaa_level_min }}">
+        <label>Max :</label>
+        <input type="number" step="any" name="quaidaa_level_max" value="{{ config.quaidaa_level_max }}"><br><br>
+        
+        <label>Flowrate OSC address:</label>
+        <input type="text" name="quaidaa_address2" value="{{ config.quaidaa_address2 }}">
+        <label>Min :</label>
+        <input type="number" step="any" name="quaidaa_flowrate_min" value="{{ config.quaidaa_flowrate_min }}">
+        <label>Max :</label>
+        <input type="number" step="any" name="quaidaa_flowrate_max" value="{{ config.quaidaa_flowrate_max }}"><br><br>
+        
+        <h3>Veterinaires</h3>
+        <label>dissolved oxygen OSC address:</label>
+        <input type="text" name="veterinaires_address1" value="{{ config.veterinaires_address1 }}">
+        <label>Min :</label>
+        <input type="number" step="any" name="veterinaires_oxygen_min" value="{{ config.veterinaires_oxygen_min }}">
+        <label>Max :</label>
+        <input type="number" step="any" name="veterinaires_oxygen_max" value="{{ config.veterinaires_oxygen_max }}"><br><br>
+        
+        <h3>Buda</h3>
+        <label>flowrate OSC address:</label>
+        <input type="text" name="buda_address1" value="{{ config.buda_address1 }}">
+        <label>Min :</label>
+        <input type="number" step="any" name="buda_flowrate_min" value="{{ config.buda_flowrate_min }}">
+        <label>Max :</label>
+        <input type="number" step="any" name="buda_flowrate_max" value="{{ config.buda_flowrate_max }}"><br><br>
+        
+        <h3>Senne OUT</h3>
+        <label>temperature OSC address:</label>
+        <input type="text" name="senneout_address1" value="{{ config.senneout_address1 }}">
+        <label>Min :</label>
+        <input type="number" step="any" name="senneout_temp_min" value="{{ config.senneout_temp_min }}">
+        <label>Max :</label>
+        <input type="number" step="any" name="senneout_temp_max" value="{{ config.senneout_temp_max }}"><br><br>
+
+        <label>conductivity OSC address:</label>
+        <input type="text" name="senneout_address2" value="{{ config.senneout_address2 }}">
+        <label>Min :</label>
+        <input type="number" step="any" name="senneout_conduct_min" value="{{ config.senneout_conduct_min }}">
+        <label>Max :</label>
+        <input type="number" step="any" name="senneout_conduct_max" value="{{ config.senneout_conduct_max }}"><br><br>
+
+        <label>acidity OSC address:</label>
+        <input type="text" name="senneout_address3" value="{{ config.senneout_address3 }}">
+        <label>Min :</label>
+        <input type="number" step="any" name="senneout_ph_min" value="{{ config.senneout_ph_min }}">
+        <label>Max :</label>
+        <input type="number" step="any" name="senneout_ph_max" value="{{ config.senneout_ph_max }}"><br><br>
 
         <input type="submit" value="Sauvegarder">
     </form>
