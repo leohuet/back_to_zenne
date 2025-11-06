@@ -9,7 +9,7 @@ from base64 import b64encode
 import requests
 import pandas as pd
 from dotenv import find_dotenv, load_dotenv
-
+import math
 
 dotenv_path = find_dotenv()
 load_dotenv(dotenv_path)
@@ -63,7 +63,7 @@ def get_relative_dates():
     now = datetime.now(timezone.utc) - timedelta(minutes=30)
 
     # Périodes relatives
-    minutes_ago = now - timedelta(minutes=install_duration)
+    minutes_ago = now - timedelta(minutes=install_duration+1)
     hours_ago = now - timedelta(hours=install_duration)
     days_ago = now - timedelta(days=install_duration)
     weeks_ago = now - timedelta(weeks=install_duration)
@@ -244,7 +244,7 @@ def osc_sender():
     df_buda = dataframes.get("buda")
 
     len_drogenbos = len(df_drogenbos)
-    len_quaidaa = len(df_quaidaa)
+    len_quaidaa = len(df_quaidaa) - 1
     len_buda = len(df_buda)
 
     drogenbos_interpol = (60 * install_duration) / len_drogenbos
@@ -278,33 +278,34 @@ def osc_sender():
             get_last_data()
             time.sleep(5)
 
-        new_index = int(time_index/5) - 1
-        if new_index < 0:
-            new_index = 0
-
+        buda_index = min(math.floor(time_index/buda_interpol) + 1, len_buda-1)
+        quaidaa_index = min(math.floor(time_index/quaidaa_interpol) + 1, len_quaidaa)
+        print(f'buda: {buda_index}, quaidaa: {quaidaa_index}')
 
 
         drogenbos_level_data = df_drogenbos['level'][time_index]
         drogenbos_mapped_data = (drogenbos_level_data * (max_val - min_val) + min_val) / 100
 
-        quaidaa_level_data = df_quaidaa['d_level'][time_index] * (((quaidaa_interpol-1) - (time_index % quaidaa_interpol))
-                            / (quaidaa_interpol-1)) + df_quaidaa['d_level'][time_index + 1] * ((time_index % quaidaa_interpol) / (quaidaa_interpol-1))
+        quaidaa_level_data = df_quaidaa['d_level'][quaidaa_index-1] * (((quaidaa_interpol-1) - (time_index % quaidaa_interpol))
+                            / (quaidaa_interpol-1)) + df_quaidaa['d_level'][quaidaa_index] * ((time_index % quaidaa_interpol) / (quaidaa_interpol-1))
         quaidaa_mapped_data = (quaidaa_level_data * (max_val - min_val) + min_val) / 100
 
-        buda_flowrate_data = df_buda['flowrate'][new_index] * ((4 - (time_index % 5)) / 4) + df_buda['flowrate'][new_index + 1] * ((time_index % 5) / 4)
+        buda_flowrate_data = df_buda['flowrate'][buda_index-1] * (((buda_interpol-1) - (time_index % buda_interpol)) /
+                            (buda_interpol-1)) + df_buda['flowrate'][buda_index] * ((time_index % buda_interpol) / (buda_interpol-1))
         buda_mapped_data = buda_flowrate_data
 
         ableton_client.send_message(osc_address1, drogenbos_mapped_data)
         ableton_client.send_message(osc_address2, buda_mapped_data)
         ableton_client.send_message(osc_address3, quaidaa_mapped_data)
 
-        # print(f"Envoi OSC {osc_address1}: {buda_mapped_data}")
+        print(f"Envoi OSC {osc_address1}: {buda_mapped_data}")
         print(f"Envoi OSC {osc_address2}: {quaidaa_mapped_data}")
 
         time.sleep(1)
-        if time_index == (60 * 1) - 1:
+        if time_index == (60 * install_duration) - 1:
+            time_index = 0
             restart = True
-        time_index = (time_index + 1) % (60 * 1)
+        time_index = (time_index + 1) % (60 * install_duration)
 
 
 # === INTERFACE FLASK ===
