@@ -49,10 +49,12 @@ my_headers = {"Authorization": "Basic " + base64_message}
 
 size_mean = 2
 drogenbos_for_mean = []
+viangros_for_mean = []
 quaidaa_for_mean = []
 pluie_for_mean = []
 for i in range(size_mean):
     drogenbos_for_mean.append(0.5)
+    viangros_for_mean.append(0.5)
     quaidaa_for_mean.append(0.5)
     pluie_for_mean.append(0.5)
 
@@ -67,8 +69,8 @@ def get_relative_dates():
     minutes_ago = now - timedelta(minutes=install_duration+1)
     hours_ago = now - timedelta(hours=install_duration)
     days_ago = now - timedelta(days=install_duration)
-    weeks_ago = now - timedelta(weeks=install_duration)
-    months_ago = now - timedelta(days=30 * install_duration)  # approximation : 1 mois = 30j
+    weeks_ago = now - timedelta(weeks=1)
+    months_ago = now - timedelta(days=30)
 
     # Formats des sorties
     minutes_date = minutes_ago.strftime(fmt)
@@ -271,22 +273,25 @@ def osc_sender():
     raw_time_index = 0
     time_index = 0
     restart = False
-    frequency = 1
+    frequency = 10
 
     df_drogenbos = dataframes.get("drogenbos")
     df_viangros = dataframes.get("viangros")
+    df_viangros2 = dataframes.get("viangros2")
     df_quaidaa = dataframes.get("quaidaa")
+    df_veterinaires = dataframes.get("veterinaires")
     df_buda = dataframes.get("buda")
+    df_senneout = dataframes.get("senneOUT")
+    df_senneout2 = dataframes.get("senneOUT2")
 
-    len_drogenbos = len(df_drogenbos)
-    len_viangros = len(df_viangros)
-    len_quaidaa = len(df_quaidaa) - 1
-    len_buda = len(df_buda)
-
-    drogenbos_interpol = math.floor((60 * install_duration) / len_drogenbos)
-    viangros_interpol = math.floor(len_viangros / (60 * install_duration))
-    quaidaa_interpol = math.floor((60 * install_duration) / len_quaidaa)
-    buda_interpol = math.floor((60 * install_duration) / len_buda)
+    drogenbos_interpol = math.floor((60 * install_duration) / len(df_drogenbos))
+    viangros_interpol = math.floor(len(df_viangros) / (60 * install_duration))
+    viangros2_interpol = math.floor(len(df_viangros2) / (60 * install_duration))
+    quaidaa_interpol = math.floor((60 * install_duration) / (len(df_quaidaa) - 1))
+    veterinaires_interpol = math.floor(len(df_veterinaires) / (60 * install_duration))
+    buda_interpol = math.floor((60 * install_duration) / len(df_buda))
+    senneout_interpol = math.floor(len(df_senneout) / (60 * install_duration))
+    senneout2_interpol = math.floor(len(df_senneout2) / (60 * install_duration))
     print(viangros_interpol)
 
     ableton_control.send_message('/live/song/start_playing', None)
@@ -308,50 +313,65 @@ def osc_sender():
             ableton_control.send_message('/live/song/stop_playing', None)
 
             df_drogenbos = dataframes.get("drogenbos")
+            df_viangros = dataframes.get("viangros")
+            df_viangros2 = dataframes.get("viangros2")
             df_quaidaa = dataframes.get("quaidaa")
+            df_veterinaires = dataframes.get("veterinaires")
             df_buda = dataframes.get("buda")
+            df_senneout = dataframes.get("senneOUT")
+            df_senneout2 = dataframes.get("senneOUT2")
 
-            len_drogenbos = len(df_drogenbos)
-            len_quaidaa = len(df_quaidaa) - 1
-            len_buda = len(df_buda)
+            drogenbos_interpol = math.floor((60 * install_duration) / len(df_drogenbos))
+            viangros_interpol = math.floor(len(df_viangros) / (60 * install_duration))
+            viangros2_interpol = math.floor(len(df_viangros2) / (60 * install_duration))
+            quaidaa_interpol = math.floor((60 * install_duration) / (len(df_quaidaa) - 1))
+            veterinaires_interpol = math.floor(len(df_veterinaires) / (60 * install_duration))
+            buda_interpol = math.floor((60 * install_duration) / len(df_buda))
+            senneout_interpol = math.floor(len(df_senneout) / (60 * install_duration))
+            senneout2_interpol = math.floor(len(df_senneout2) / (60 * install_duration))
+            print(viangros_interpol)
 
-            drogenbos_interpol = (60 * install_duration) / len_drogenbos
-            quaidaa_interpol = (60 * install_duration) / len_quaidaa
-            buda_interpol = (60 * install_duration) / len_buda
-            print(drogenbos_interpol)
-            print(quaidaa_interpol)
-            print(buda_interpol)
             time.sleep(2)
             ableton_control.send_message('/live/song/start_playing', None)
             time_index = 0
             raw_time_index = 0
 
         viangros_index = time_index*viangros_interpol
-        buda_index = min(math.floor(time_index/buda_interpol) + 1, len_buda-1)
-        quaidaa_index = min(math.floor(time_index/quaidaa_interpol) + 1, len_quaidaa)
+        viangros2_index = time_index*viangros2_interpol
+        quaidaa_index = min(math.floor(time_index/quaidaa_interpol) + 1, (len(df_quaidaa) - 1))
+        veterinaires_index = time_index*veterinaires_interpol
+        buda_index = min(math.floor(time_index / buda_interpol) + 1, len(df_buda) - 1)
 
 
         # drogenbos_level_data = df_drogenbos['level'][time_index]
         # drogenbos_mapped_data = (drogenbos_level_data * (max_val1 - min_val1) + min_val1).round(2)
 
-        viangros_temp_data = df_viangros['temperature'][viangros_index]
-        viangros_mapped_data = (viangros_temp_data * (local_config["viangros_temp_max"] - local_config["viangros_temp_min"]) + local_config["viangros_temp_min"]).round(2)
+        viangros_temp_data = df_viangros['temp'][viangros_index]
+        viangros_temp_mapped = (viangros_temp_data * (local_config["viangros_temp_max"] - local_config["viangros_temp_min"]) + local_config["viangros_temp_min"]).round(2)
+        viangros_temp_mapped = moyenne_glissante(viangros_for_mean, viangros_temp_mapped)
+        viangros_conduct_data = df_viangros2['conduct'][viangros2_index]
+        viangros_conduct_mapped = (viangros_conduct_data * (local_config["viangros_conduct_max"] - local_config["viangros_conduct_min"]) + local_config["viangros_conduct_min"]).round(2)
 
         quaidaa_level_data = df_quaidaa['d_level'][quaidaa_index-1] * (((quaidaa_interpol-1) - (time_index % quaidaa_interpol))
                             / (quaidaa_interpol-1)) + df_quaidaa['d_level'][quaidaa_index] * ((time_index % quaidaa_interpol) / (quaidaa_interpol-1))
         quaidaa_mapped_data = (quaidaa_level_data * (local_config["quaidaa_level_max"] - local_config["quaidaa_level_min"]) + local_config["quaidaa_level_min"]).round(2)
 
+        veterinaires_oxygen_data = df_veterinaires["oxygen"][veterinaires_index]
+        veterinaires_oxygen_mapped = (veterinaires_oxygen_data * (local_config["veterinaires_oxygen_max"] - local_config["veterinaires_oxygen_min"]) + local_config["veterinaires_oxygen_min"]).round(2)
+
         buda_flowrate_data = df_buda['flowrate'][buda_index-1] * (((buda_interpol-1) - (time_index % buda_interpol)) /
                             (buda_interpol-1)) + df_buda['flowrate'][buda_index] * ((time_index % buda_interpol) / (buda_interpol-1))
         buda_mapped_data = (buda_flowrate_data * (local_config["buda_flowrate_max"] - local_config["buda_flowrate_min"]) + local_config["buda_flowrate_min"]).round(2)
 
-        ableton_client.send_message(local_config["viangros_address1"], viangros_mapped_data)
-        ableton_client.send_message(local_config["buda_address1"], buda_mapped_data)
+        ableton_client.send_message(local_config["viangros_address1"], viangros_temp_mapped)
+        ableton_client.send_message(local_config["viangros_address2"], viangros_conduct_mapped)
         ableton_client.send_message(local_config["quaidaa_address1"], quaidaa_mapped_data)
+        ableton_client.send_message(local_config["veterinaires_address1"], veterinaires_oxygen_mapped)
+        ableton_client.send_message(local_config["buda_address1"], buda_mapped_data)
 
-        print(f'Envoi OSC {local_config["viangros_address1"]}: {viangros_mapped_data}')
-        print(f'Envoi OSC {local_config["buda_address1"]}: {quaidaa_mapped_data}')
-        print(f'Envoi OSC {local_config["quaidaa_address1"]}: {buda_mapped_data}')
+        # print(f'Envoi OSC {local_config["viangros_address2"]}: {viangros_conduct_mapped}')
+        # print(f'Envoi OSC {local_config["veterinaires_address1"]}: {veterinaires_oxygen_mapped}')
+        # print(f'Envoi OSC {local_config["quaidaa_address1"]}: {buda_mapped_data}')
         time.sleep(1 / frequency)
         if raw_time_index == (60 * install_duration) - 1:
             restart = True
@@ -446,8 +466,16 @@ if __name__ == "__main__":
             "name": "viangros",
             "uid": "4B8483DD3257BAD9",
             "histdata": "histdata0",
-            "channel": '"temp", "conduct", "ph"',
+            "channel": '"temp"',
             "from": dates_dict["days"],
+            "until": dates_dict["date_end"]
+        },
+        {
+            "name": "viangros2",
+            "uid": "4B8483DD3257BAD9",
+            "histdata": "histdata0",
+            "channel": '"conduct", "ph"',
+            "from": dates_dict["months"],
             "until": dates_dict["date_end"]
         },
         {
@@ -478,7 +506,15 @@ if __name__ == "__main__":
             "name": "senneOUT",
             "uid": "4B845F9C7151AC54",
             "histdata": "histdata0",
-            "channel": '"temp", "conduct", "ph"',
+            "channel": '"temp"',
+            "from": dates_dict["days"],
+            "until": dates_dict["date_end"]
+        },
+        {
+            "name": "senneOUT2",
+            "uid": "4B845F9C7151AC54",
+            "histdata": "histdata0",
+            "channel": '"conduct", "ph"',
             "from": dates_dict["months"],
             "until": dates_dict["date_end"]
         },
@@ -487,11 +523,13 @@ if __name__ == "__main__":
 
     data_names = {
         "drogenbos": ["level"],
-        "viangros": ["temperature", "conductivity", "acidity"],
+        "viangros": ["temp"],
+        "viangros2": ["conduct", "acidity"],
         "quaidaa": ["d_level", "g_level", "d_flowrate", "g_flowrate"],
         "veterinaires": ["oxygen"],
         "buda": ["flowrate"],
-        "senneOUT": ["temperature", "conductivity", "acidity"]
+        "senneOUT": ["temp"],
+        "senneOUT2": ["conduct", "acidity"]
 
     }
 
