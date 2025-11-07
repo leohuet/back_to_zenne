@@ -3,7 +3,7 @@ import time
 from datetime import datetime, timedelta, timezone
 import json
 import os
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, render_template, request, redirect, url_for, jsonify
 from pythonosc import udp_client
 from base64 import b64encode
 import requests
@@ -35,7 +35,7 @@ local_config = {
     "max_value": 100.0
 }
 
-install_duration = 8
+install_duration = 2
 
 # --- Authentification ---
 user = os.getenv("FLOWBRU_USER")
@@ -215,40 +215,74 @@ def load_config():
         base_config = {
             "ip_address": "127.0.0.1",
             "ableton_port": 8001,
-            "madmapper_port": 9001,
-            "drogengos_address1": "/viangros/temp1",
-            "drogenbos_level_min_value": 0.0,
-            "drogenbos_level_max_value": 1.0,
-            "viangros_address1": "/viangros/temp2",
-            "viangros_temp_min_value": 0.0,
-            "viangros_temp_max_value": 1.0,
-            "viangros_address2": "/viangros/temp3",
-            "viangros_conduct_min_value": 0.0,
-            "viangros_conduct_max_value": 1.0,
-            "viangros_address3": "/viangros/temp4",
-            "viangros_ph_min_value": 0.0,
-            "viangros_ph_max_value": 1.0,
-            "quaidaa_address1": "/viangros/temp5",
-            "quaidaa_level_min_value": 0.0,
-            "quaidaa_level_max_value": 1.0,
-            "quaidaa_address2": "/viangros/temp6",
-            "quaidaa_flowrate_min_value": 0.0,
-            "quaidaa_flowrate_max_value": 1.0,
-            "veterinaires_address1": "/viangros/temp7",
-            "veterinaires_oxygen_min_value": 0.0,
-            "veterinaires_oxygen_max_value": 1.0,
-            "buda_address1": "/viangros/temp8",
-            "buda_flowrate_min_value": 0.0,
-            "buda_flowrate_max_value": 1.0,
-            "senneout_address1": "/viangros/temp9",
-            "senneout_temp_min_value": 0.0,
-            "senneout_temp_max_value": 1.0,
-            "senneout_address2": "/viangros/temp10",
-            "senneout_conduct_min_value": 0.0,
-            "senneout_conduct_max_value": 1.0,
-            "senneout_address3": "/viangros/temp11",
-            "senneout_ph_min_value": 0.0,
-            "senneout_ph_max_value": 1.0
+            "addresses": [
+                {
+                    "name": "drogenbos_level",
+                    "osc_address": "/drogenbos/1",
+                    "min_value": 0.0,
+                    "max_value": 1.0
+                },
+                {
+                    "name": "viangros_temp",
+                    "osc_address": "/viangros/1",
+                    "min_value": 0.0,
+                    "max_value": 1.0
+                },
+                {
+                    "name": "viangros_conduct",
+                    "osc_address": "/viangros/2",
+                    "min_value": 0.0,
+                    "max_value": 1.0
+                },
+                {
+                    "name": "viangros_ph",
+                    "osc_address": "/viangros/3",
+                    "min_value": 0.0,
+                    "max_value": 1.0
+                },
+                {
+                    "name": "quaidaa_level",
+                    "osc_address": "/quaidaa/1",
+                    "min_value": 0.0,
+                    "max_value": 1.0
+                },
+                {
+                    "name": "quaidaa_flowrate",
+                    "osc_address": "/quaidaa/2",
+                    "min_value": 0.0,
+                    "max_value": 1.0
+                },
+                {
+                    "name": "veterinaires_oxygen",
+                    "osc_address": "/veterinaires/1",
+                    "min_value": 0.0,
+                    "max_value": 1.0
+                },
+                {
+                    "name": "buda_flowrate",
+                    "osc_address": "/buda/1",
+                    "min_value": 0.0,
+                    "max_value": 1.0
+                },
+                {
+                    "name": "senneout_temp",
+                    "osc_address": "/senneout/1",
+                    "min_value": 0.0,
+                    "max_value": 1.0
+                },
+                {
+                    "name": "senneout_conduct",
+                    "osc_address": "/senneout/2",
+                    "min_value": 0.0,
+                    "max_value": 1.0
+                },
+                {
+                    "name": "senneout_ph",
+                    "osc_address": "/senneout/3",
+                    "min_value": 0.0,
+                    "max_value": 1.0
+                }
+            ]
         }
         save_config(base_config)
         return base_config
@@ -287,7 +321,6 @@ def osc_sender():
         else:
             site["interpol"] = 1 / math.floor(len(site["df"]) / (60 * frequency * install_duration))
         print(f'{site["name"]}, {site["interpol"]}')
-
 
     ableton_control.send_message('/live/song/start_playing', None)
 
@@ -341,38 +374,29 @@ def osc_sender():
             elif site["interpol"] > 1:
                 site["index"] = min(math.floor(sec_time_index / site["interpol"]) + 1, len(site["df"]) - 1)
 
-        print(sites[5]["index"])
+        print(sites[3]["index"])
 
-        # drogenbos_level_data = df_drogenbos['level'][time_index]
-        # drogenbos_mapped_data = (drogenbos_level_data * (max_val1 - min_val1) + min_val1).round(2)
+        addr_index = 0
+        for site in sites:
+            for data in data_names1[site["name"]]:
+                addr = local_config["addresses"][addr_index]
+                vmin, vmax = float(addr["min_value"]), float(addr["max_value"])
+                osc_addr = addr["osc_address"]
+                if site["interpol"] < 1:
+                    val = site["df"][data][site["index"]]
+                elif site["interpol"] == 1:
+                    val = site["df"][data][site["index"]]
+                elif site["interpol"] > 1:
+                    val = site["df"][data][site["index"]-1] * (((site["interpol"]*frequency-1) - (d_sec_time_index % (site["interpol"]*frequency))) /
+                            (site["interpol"]*frequency-1)) + site["df"][data][site["index"]] * ((d_sec_time_index % (site["interpol"]*frequency)) / (site["interpol"]*frequency-1))
+                else:
+                    val = 0.5
+                new_val = val*(vmax-vmin)+vmin
+                # mad_client.send_message(osc_addr, val)
+                ableton_client.send_message(osc_addr, new_val)
+                print(f"[THREAD] Envoi {osc_addr} = {new_val}")
+                addr_index += 1
 
-        viangros_temp_data = sites[1]["df"]["temp"][sites[1]["index"]]
-        viangros_temp_mapped = viangros_temp_data * (local_config["viangros_temp_max"] - local_config["viangros_temp_min"]) + local_config["viangros_temp_min"]
-        viangros_temp_mapped = (moyenne_glissante(viangros_for_mean, viangros_temp_mapped)).round(2)
-        # viangros_conduct_data = sites[2]["df"]["conduct"][viangros2_index]
-        # viangros_conduct_mapped = (viangros_conduct_data * (local_config["viangros_conduct_max"] - local_config["viangros_conduct_min"]) + local_config["viangros_conduct_min"]).round(2)
-
-        """quaidaa_level_data = sites[3]["df"]["d_level"][quaidaa_index-1] * (((sites[3]["interpol"]-1) - (sec_time_index % sites[3]["interpol"]))
-                            / (sites[3]["interpol"]-1)) + sites[3]["df"]["d_level"][quaidaa_index] * ((sec_time_index % sites[3]["interpol"]) / (sites[3]["interpol"]-1))
-        quaidaa_mapped_data = (quaidaa_level_data * (local_config["quaidaa_level_max"] - local_config["quaidaa_level_min"]) + local_config["quaidaa_level_min"]).round(2)
-
-        veterinaires_oxygen_data = sites[4]["df"]["oxygen"][veterinaires_index]
-        veterinaires_oxygen_mapped = (veterinaires_oxygen_data * (local_config["veterinaires_oxygen_max"] - local_config["veterinaires_oxygen_min"]) + local_config["veterinaires_oxygen_min"]).round(2)"""
-
-        buda_flowrate_data = sites[5]["df"]["flowrate"][sites[5]["index"]-1] * (((sites[5]["interpol"]*10-1) - (d_sec_time_index % (sites[5]["interpol"]*10))) /
-                            (sites[5]["interpol"]*10-1)) + sites[5]["df"]["flowrate"][sites[5]["index"]] * ((d_sec_time_index % (sites[5]["interpol"]*10)) / (sites[5]["interpol"]*10-1))
-        buda_mapped_data = (buda_flowrate_data * (local_config["buda_flowrate_max"] - local_config["buda_flowrate_min"]) + local_config["buda_flowrate_min"]).round(2)
-
-        ableton_client.send_message(local_config["viangros_address1"], viangros_temp_mapped)
-        # ableton_client.send_message(local_config["viangros_address2"], viangros_conduct_mapped)
-        # ableton_client.send_message(local_config["quaidaa_address1"], quaidaa_mapped_data)
-        # ableton_client.send_message(local_config["veterinaires_address1"], veterinaires_oxygen_mapped)
-        ableton_client.send_message(local_config["buda_address1"], buda_mapped_data)
-
-        # print(f'Envoi OSC {local_config["viangros_address1"]}: {viangros_temp_mapped}')
-        # print(f'Envoi OSC {local_config["viangros_address2"]}: {viangros_conduct_mapped}')
-        # print(f'Envoi OSC {local_config["veterinaires_address1"]}: {veterinaires_oxygen_mapped}')
-        print(f'Envoi OSC {local_config["quaidaa_address1"]}: {buda_mapped_data}')
         time.sleep(1 / frequency)
         if sec_time_index == (60 * install_duration) - 1:
             restart = True
@@ -390,39 +414,18 @@ def index():
         config["ip_address"] = request.form["ip_address"]
         config["ableton_port"] = int(request.form["ableton_port"])
         config["madmapper_port"] = int(request.form["madmapper_port"])
-        config["drogenbos_address1"] = request.form["drogenbos_address1"]
-        config["drogenbos_level_min"] = float(request.form["drogenbos_level_min"])
-        config["drogenbos_level_max"] = float(request.form["drogenbos_level_max"])
-        config["viangros_address1"] = request.form["viangros_address1"]
-        config["viangros_temp_min"] = float(request.form["viangros_temp_min"])
-        config["viangros_temp_max"] = float(request.form["viangros_temp_max"])
-        config["viangros_address2"] = request.form["viangros_address2"]
-        config["viangros_conduct_min"] = float(request.form["viangros_conduct_min"])
-        config["viangros_conduct_max"] = float(request.form["viangros_conduct_max"])
-        config["viangros_address3"] = request.form["viangros_address3"]
-        config["viangros_ph_min"] = float(request.form["viangros_ph_min"])
-        config["viangros_ph_max"] = float(request.form["viangros_ph_max"])
-        config["quaidaa_address1"] = request.form["quaidaa_address1"]
-        config["quaidaa_level_min"] = float(request.form["quaidaa_level_min"])
-        config["quaidaa_level_max"] = float(request.form["quaidaa_level_max"])
-        config["quaidaa_address2"] = request.form["quaidaa_address2"]
-        config["quaidaa_flowrate_min"] = float(request.form["quaidaa_flowrate_min"])
-        config["quaidaa_flowrate_max"] = float(request.form["quaidaa_flowrate_max"])
-        config["veterinaires_address1"] = request.form["veterinaires_address1"]
-        config["veterinaires_oxygen_min"] = float(request.form["veterinaires_oxygen_min"])
-        config["veterinaires_oxygen_max"] = float(request.form["veterinaires_oxygen_max"])
-        config["buda_address1"] = request.form["buda_address1"]
-        config["buda_flowrate_min"] = float(request.form["buda_flowrate_min"])
-        config["buda_flowrate_max"] = float(request.form["buda_flowrate_max"])
-        config["senneout_address1"] = request.form["senneout_address1"]
-        config["senneout_temp_min"] = float(request.form["senneout_temp_min"])
-        config["senneout_temp_max"] = float(request.form["senneout_temp_max"])
-        config["senneout_address2"] = request.form["senneout_address2"]
-        config["senneout_conduct_min"] = float(request.form["senneout_conduct_min"])
-        config["senneout_conduct_max"] = float(request.form["senneout_conduct_max"])
-        config["senneout_address3"] = request.form["senneout_address3"]
-        config["senneout_ph_min"] = float(request.form["senneout_ph_min"])
-        config["senneout_ph_max"] = float(request.form["senneout_ph_max"])
+        new_addresses = []
+        n = int(request.form["count"])
+        for i in range(n):
+            new_addresses.append({
+                "name": request.form[f"name_{i}"],
+                "osc_address": request.form[f"osc_address_{i}"],
+                "td_port": int(request.form[f"td_port_{i}"]),
+                "ableton_port": int(request.form[f"ableton_port_{i}"]),
+                "min_value": float(request.form[f"min_value_{i}"]),
+                "max_value": float(request.form[f"max_value_{i}"])
+            })
+        config["addresses"] = new_addresses
         save_config(config)
         return redirect(url_for("index"))
     return render_template("index.html", config=config)
@@ -443,6 +446,26 @@ def stop_osc():
     global osc_running
     osc_running = False
     return redirect(url_for("index"))
+
+@app.route("/test_osc/<int:index>", methods=["POST"])
+def test_osc(index):
+    global ableton_client, mad_client
+    cfg = load_config()
+    try:
+        addr = cfg["addresses"][index]
+    except IndexError:
+        return jsonify({"error": "index invalide"}), 400
+
+    vmin, vmax = float(addr["min_value"]), float(addr["max_value"])
+    osc_addr = addr["osc_address"]
+
+    val = (vmax + vmin) / 2
+
+    mad_client.send_message(osc_addr, val)
+    ableton_client.send_message(osc_addr, val)
+    print(f"[TEST] {osc_addr} = {val}")
+
+    return jsonify({"sent": True, "address": osc_addr, "value": val})
 
 
 if __name__ == "__main__":
@@ -558,6 +581,17 @@ if __name__ == "__main__":
         "senneOUT2": ["conduct", "acidity"]
 
     }
+    data_names1 = {
+        "drogenbos": ["level"],
+        "viangros": ["temp"],
+        "viangros2": ["conduct", "acidity"],
+        "quaidaa": ["d_level", "d_flowrate"],
+        "veterinaires": ["oxygen"],
+        "buda": ["flowrate"],
+        "senneOUT": ["temp"],
+        "senneOUT2": ["conduct", "acidity"]
+
+    }
 
     # --- Stockage des DataFrames ---
     dataframes = {}
@@ -566,11 +600,11 @@ if __name__ == "__main__":
 
     config = load_config()
     ip = config["ip_address"]
-    td_port = int(config["madmapper_port"])
+    mad_port = int(config["madmapper_port"])
     ableton_port = int(config["ableton_port"])
 
     # Clients OSC
-    td_client = udp_client.SimpleUDPClient(ip, td_port)
+    mad_client = udp_client.SimpleUDPClient(ip, mad_port)
     ableton_client = udp_client.SimpleUDPClient(ip, ableton_port)
     ableton_control = udp_client.SimpleUDPClient(ip, abletonOSC_port)
     ableton_control.send_message('/live/song/stop_playing', None)
