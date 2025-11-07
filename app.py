@@ -317,6 +317,23 @@ def osc_sender():
             ableton_control.send_message('/live/song/stop_playing', None)
             time.sleep(1)
             ableton_control.send_message('/live/song/stop_playing', None)
+            addr_index = 0
+            new_bundle = osc_bundle_builder.OscBundleBuilder(osc_bundle_builder.IMMEDIATELY)
+            for site in sites:
+                for data in data_names1[site["name"]]:
+                    addr = local_config["addresses"][addr_index]
+                    vmin, vmax = float(addr["min_value"]), float(addr["max_value"])
+                    osc_addr = addr["osc_address"]
+                    val = site["df"][data][0]
+                    new_val = val * (vmax - vmin) + vmin
+                    msg = osc_message_builder.OscMessageBuilder(address=osc_addr)
+                    msg.add_arg(new_val)
+                    new_bundle.add_content(msg.build())
+                    # print(f"[THREAD] Envoi {osc_addr} = {new_val}")
+                    addr_index += 1
+
+            new_bundle = new_bundle.build()
+            ableton_client.send(new_bundle)
 
             for site in sites:
                 site["df"] = dataframes.get(site["name"])
