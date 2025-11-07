@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 import json
 import os
 from flask import Flask, render_template, request, redirect, url_for, jsonify
-from pythonosc import udp_client
+from pythonosc import udp_client, osc_bundle_builder, osc_message_builder
 from base64 import b64encode
 import requests
 import pandas as pd
@@ -14,26 +14,89 @@ import math
 dotenv_path = find_dotenv()
 load_dotenv(dotenv_path)
 
+# app and config parameters
 app = Flask(__name__)
 CONFIG_FILE = "config.json"
+base_config = {
+    "ip_address": "127.0.0.1",
+    "ableton_port": 8001,
+    "madmapper_port": 9001,
+    "addresses": [
+        {
+            "name": "drogenbos_level",
+            "osc_address": "/drogenbos/1",
+            "min_value": 0.0,
+            "max_value": 1.0
+        },
+        {
+            "name": "viangros_temp",
+            "osc_address": "/viangros/1",
+            "min_value": 0.0,
+            "max_value": 1.0
+        },
+        {
+            "name": "viangros_conduct",
+            "osc_address": "/viangros/2",
+            "min_value": 0.0,
+            "max_value": 1.0
+        },
+        {
+            "name": "viangros_ph",
+            "osc_address": "/viangros/3",
+            "min_value": 0.0,
+            "max_value": 1.0
+        },
+        {
+            "name": "quaidaa_level",
+            "osc_address": "/quaidaa/1",
+            "min_value": 0.0,
+            "max_value": 1.0
+        },
+        {
+            "name": "quaidaa_flowrate",
+            "osc_address": "/quaidaa/2",
+            "min_value": 0.0,
+            "max_value": 1.0
+        },
+        {
+            "name": "veterinaires_oxygen",
+            "osc_address": "/veterinaires/1",
+            "min_value": 0.0,
+            "max_value": 1.0
+        },
+        {
+            "name": "buda_flowrate",
+            "osc_address": "/buda/1",
+            "min_value": 0.0,
+            "max_value": 1.0
+        },
+        {
+            "name": "senneout_temp",
+            "osc_address": "/senneout/1",
+            "min_value": 0.0,
+            "max_value": 1.0
+        },
+        {
+            "name": "senneout_conduct",
+            "osc_address": "/senneout/2",
+            "min_value": 0.0,
+            "max_value": 1.0
+        },
+        {
+            "name": "senneout_ph",
+            "osc_address": "/senneout/3",
+            "min_value": 0.0,
+            "max_value": 1.0
+        }
+    ]
+}
+local_config = {}
 old_getmtime = 1000
 
+# OSC parameters
+abletonOSC_port = 11000
 osc_thread = None
 osc_running = False
-
-ip = '127.0.0.1'
-ableton_port = 8001
-abletonOSC_port = 11000
-td_port = 9001
-
-local_config = {
-    "ip_address": "127.0.0.1",
-    "td_port": 9001,
-    "ableton_port": 8001,
-    "osc_address": "/value",
-    "min_value": 0.0,
-    "max_value": 100.0
-}
 
 install_duration = 2
 
@@ -46,7 +109,7 @@ base64_bytes = b64encode(message_bytes)
 base64_message = base64_bytes.decode('ascii')
 my_headers = {"Authorization": "Basic " + base64_message}
 
-
+# rolling average variables
 size_mean = 2
 drogenbos_for_mean = []
 viangros_for_mean = []
@@ -60,19 +123,20 @@ for i in range(size_mean):
 
 
 def get_relative_dates():
+    # retrieve all dates for API calls
     global install_duration
     fmt = "%Y%m%d%H%M"
     fmt_day = "%Y%m%d0000"
     now = datetime.now(timezone.utc) - timedelta(minutes=30)
 
-    # Périodes relatives
+    # relative to now dates
     minutes_ago = now - timedelta(minutes=install_duration+1)
     hours_ago = now - timedelta(hours=install_duration)
     days_ago = now - timedelta(days=install_duration)
     weeks_ago = now - timedelta(weeks=1)
     months_ago = now - timedelta(days=30)
 
-    # Formats des sorties
+    # date format
     minutes_date = minutes_ago.strftime(fmt)
     hours_date = hours_ago.strftime(fmt)
     days_date = days_ago.strftime(fmt_day)
@@ -91,6 +155,7 @@ def get_relative_dates():
         "current_date_h_min": current_datehmin
     }
 
+
 def moyenne_glissante(data_array, new_value):
     global size_mean
     data_array.append(new_value)
@@ -99,210 +164,119 @@ def moyenne_glissante(data_array, new_value):
     return sum(data_array) / len(data_array)
 
 
-# Fonction pour corriger les dates
 def corriger_date_brute(date_str):
+    # Fonction pour corriger les dates
     date_str = str(date_str).strip()
-    date_str = ''.join(filter(str.isdigit, date_str))  # Enlever tout sauf les chiffres
-
+    date_str = ''.join(filter(str.isdigit, date_str))
     # Tronquer si trop long
     if len(date_str) > 12:
         date_str = date_str[:12]
-
     # Compléter avec des zéros à droite si trop court
     while len(date_str) < 12:
         date_str += '0'
-
     return date_str
 
 
+def process_request(site, response, local=False):
+    try:
+        if not local and response.status_code == 200:
+            data = response.json()
+            with open(f"{site['name']}.json", "w") as f:
+                json.dump(data, f, indent=4)
+        else:
+            with open(f"{site['name']}.json", "r") as f:
+                data = json.load(f)
+        df = pd.DataFrame(data)
+        # cleaning timestamp
+        if 't' in df.columns:
+            df['timestamp'] = pd.to_datetime(df['t'], unit='s')
+            df = df.drop(columns=['t'])
+
+        df.rename(columns={0: "date"}, inplace=True)
+        for j in range(1, len(df.columns)):
+            df[j] = pd.to_numeric(df[j], errors='coerce')
+            df[j] = (df[j] - min(df[j])) / (max(df[j]) - min(df[j]))
+            df = df[df[j].notna()]
+            df[j] = df[j].round(2)
+            df.rename(columns={j: data_names[site['name']][j - 1]}, inplace=True)
+
+        df['site'] = site['name']
+
+        # data correction
+        df['date'] = df['date'].apply(corriger_date_brute)
+        df = df[df['date'].notna()]
+        df['date'] = pd.to_datetime(df['date'], format='%Y%m%d%H%M', errors='coerce')
+        dataframes[site["name"]] = df
+        print(f"{site['name'].capitalize()} - {len(df)} lignes")
+        print(df.head(), '\n')
+    except Exception as e:
+        print(f"Erreur JSON ou DataFrame pour {site['name']}: {e}")
+
+
 def retrieve_data():
-    # --- Récupération des données pour chaque site ---
+    # --- Data retrieving for each site ---
     for site in sites:
         url = f'https://www.flowbru.eu/api/1/customers/{CID}/sites/{site["uid"]}/{site["histdata"]}?json={{"select":[{site["channel"]}],"from":"{site["from"]}","until":"{site["until"]}"}} '
         print(url)
-        response = requests.get(url, headers=my_headers)
+        response = 0
+        try:
+            response = requests.get(url, headers=my_headers)
+        except:
+            print("Error occured while calling API, getting data from local JSON.")
 
-        if response.status_code == 200:
-            try:
-                data = response.json()
-                df = pd.DataFrame(data)  # adapte ici si la structure est différente
-                # Nettoyage : convertir le timestamp s'il existe
-                if 't' in df.columns:
-                    df['timestamp'] = pd.to_datetime(df['t'], unit='s')
-                    df = df.drop(columns=['t'])  # On garde que "timestamp", plus lisible
-
-                df.rename(columns={0: "date"}, inplace=True)
-                for j in range(1, len(df.columns)):
-                    df[j] = pd.to_numeric(df[j], errors='coerce')
-                    df[j] = (df[j] - min(df[j])) / (max(df[j]) - min(df[j]))
-                    df = df[df[j].notna()]
-                    df[j] = df[j].round(2)
-                    df.rename(columns={j: data_names[site['name']][j-1]}, inplace=True)
-
-                # Ajouter le nom du site en colonne (optionnel mais utile pour concat)
-                df['site'] = site['name']
-
-                # Correction des dates
-                df['date'] = df['date'].apply(corriger_date_brute)
-                df = df[df['date'].notna()]
-                df['date'] = pd.to_datetime(df['date'], format='%Y%m%d%H%M', errors='coerce')
-                dataframes[site["name"]] = df
-                print(f"{site['name'].capitalize()} - {len(df)} lignes")
-                print(df.head(), '\n')
-            except Exception as e:
-                print(f"Erreur JSON ou DataFrame pour {site['name']}: {e}")
-                # print(response.text)
+        if response:
+            process_request(site, response, local=False)
         else:
-            print(f"Erreur HTTP pour {site['name']}: {response.status_code}")
-            print(response.text)
+            print(f"Erreur HTTP pour {site['name']}")
+            process_request(site, response, local=True)
 
 
 def get_last_data():
+    # get new data for realtime
     new_dates_dict = get_relative_dates()
-
-    sites[1]["from"] = new_dates_dict["minutes"]
-    sites[1]["until"] = new_dates_dict["current_date_h_min"]
-
-    # --- Récupération des données pour chaque site ---
-    for site in sites:
-        if site['name'] != "quaidaa":
-            continue
-        url = f'https://www.flowbru.eu/api/1/customers/{CID}/sites/{site["uid"]}/{site["histdata"]}?json={{"select":[{site["channel"]}],"from":"{site["from"]}","until":"{site["until"]}"}} '
-        print(url)
+    sites[3]["from"] = new_dates_dict["minutes"]
+    sites[3]["until"] = new_dates_dict["current_date_h_min"]
+    url = f'https://www.flowbru.eu/api/1/customers/{CID}/sites/{sites[3]["uid"]}/{sites[3]["histdata"]}?json={{"select":[{sites[3]["channel"]}],"from":"{sites[3]["from"]}","until":"{sites[3]["until"]}"}} '
+    print(url)
+    response = 0
+    try:
         response = requests.get(url, headers=my_headers)
+    except:
+        print("Error occured while calling API, getting data from local JSON.")
 
-        if response.status_code == 200:
-            try:
-                data = response.json()
-                df = pd.DataFrame(data)  # adapte ici si la structure est différente
-                # Nettoyage : convertir le timestamp s'il existe
-                if 't' in df.columns:
-                    df['timestamp'] = pd.to_datetime(df['t'], unit='s')
-                    df = df.drop(columns=['t'])  # On garde que "timestamp", plus lisible
-
-                df.rename(columns={0: "date"}, inplace=True)
-                for j in range(1, len(df.columns)):
-                    df[j] = pd.to_numeric(df[j], errors='coerce')
-                    df = df[df[j].notna()]
-                    df[j] = (df[j] - min(df[j])) / (max(df[j]) - min(df[j]))
-                    df[j] = df[j].round(2)
-                    df.rename(columns={j: data_names[site['name']][j - 1]}, inplace=True)
-
-                # Ajouter le nom du site en colonne (optionnel mais utile pour concat)
-                df['site'] = site['name']
-
-                # Correction des dates
-                df['date'] = df['date'].apply(corriger_date_brute)
-                df = df[df['date'].notna()]
-                df['date'] = pd.to_datetime(df['date'], format='%Y%m%d%H%M', errors='coerce')
-                dataframes[site["name"]] = df
-                print(f"{site['name'].capitalize()} - {len(df)} lignes")
-                print(df.head(), '\n')
-            except Exception as e:
-                print(f"Erreur JSON ou DataFrame pour {site['name']}: {e}")
-                # print(response.text)
-        else:
-            print(f"Erreur HTTP pour {site['name']}: {response.status_code}")
-            print(response.text)
+    if response:
+        process_request(sites[3], response, local=False)
+    else:
+        print(f"Erreur HTTP pour {sites[3]['name']}")
+        process_request(sites[3], response, local=True)
 
 
 # === GESTION DE LA CONFIG ===
 def load_config():
+    global base_config
     if os.path.exists(CONFIG_FILE):
         with open(CONFIG_FILE, "r") as f:
             return json.load(f)
     else:
-        base_config = {
-            "ip_address": "127.0.0.1",
-            "ableton_port": 8001,
-            "addresses": [
-                {
-                    "name": "drogenbos_level",
-                    "osc_address": "/drogenbos/1",
-                    "min_value": 0.0,
-                    "max_value": 1.0
-                },
-                {
-                    "name": "viangros_temp",
-                    "osc_address": "/viangros/1",
-                    "min_value": 0.0,
-                    "max_value": 1.0
-                },
-                {
-                    "name": "viangros_conduct",
-                    "osc_address": "/viangros/2",
-                    "min_value": 0.0,
-                    "max_value": 1.0
-                },
-                {
-                    "name": "viangros_ph",
-                    "osc_address": "/viangros/3",
-                    "min_value": 0.0,
-                    "max_value": 1.0
-                },
-                {
-                    "name": "quaidaa_level",
-                    "osc_address": "/quaidaa/1",
-                    "min_value": 0.0,
-                    "max_value": 1.0
-                },
-                {
-                    "name": "quaidaa_flowrate",
-                    "osc_address": "/quaidaa/2",
-                    "min_value": 0.0,
-                    "max_value": 1.0
-                },
-                {
-                    "name": "veterinaires_oxygen",
-                    "osc_address": "/veterinaires/1",
-                    "min_value": 0.0,
-                    "max_value": 1.0
-                },
-                {
-                    "name": "buda_flowrate",
-                    "osc_address": "/buda/1",
-                    "min_value": 0.0,
-                    "max_value": 1.0
-                },
-                {
-                    "name": "senneout_temp",
-                    "osc_address": "/senneout/1",
-                    "min_value": 0.0,
-                    "max_value": 1.0
-                },
-                {
-                    "name": "senneout_conduct",
-                    "osc_address": "/senneout/2",
-                    "min_value": 0.0,
-                    "max_value": 1.0
-                },
-                {
-                    "name": "senneout_ph",
-                    "osc_address": "/senneout/3",
-                    "min_value": 0.0,
-                    "max_value": 1.0
-                }
-            ]
-        }
         save_config(base_config)
         return base_config
 
 
 def save_config(config_dict):
-    global td_client, ableton_client
+    global mad_client, ableton_client
     with open(CONFIG_FILE, "w") as f:
         json.dump(config_dict, f, indent=4)
     IP = config_dict["ip_address"]
-    TD_PORT = int(config_dict["td_port"])
+    MAD_PORT = int(config_dict["madmapper_port"])
     ABLETON_PORT = int(config_dict["ableton_port"])
     # Clients OSC
-    td_client = udp_client.SimpleUDPClient(IP, TD_PORT)
+    mad_client = udp_client.SimpleUDPClient(IP, MAD_PORT)
     ableton_client = udp_client.SimpleUDPClient(IP, ABLETON_PORT)
 
 
 # === THREAD OSC ===
 def osc_sender():
-    global td_client, ableton_client, old_getmtime, local_config, df, osc_running
+    global mad_client, ableton_client, old_getmtime, local_config, osc_running
     print("OSC thread démarré.")
     d_sec_time_index = 0
     sec_time_index = 0
@@ -323,16 +297,20 @@ def osc_sender():
         print(f'{site["name"]}, {site["interpol"]}')
 
     ableton_control.send_message('/live/song/start_playing', None)
-
+    start_time = int(time.strftime('%H')) * 3600 + int(time.strftime('%M')) * 60 + int(time.strftime('%S'))
     while osc_running:
+        current_time = int(time.strftime('%H')) * 3600 + int(time.strftime('%M')) * 60 + int(time.strftime('%S'))
         if os.path.getmtime(CONFIG_FILE) != old_getmtime:
             old_getmtime = os.path.getmtime(CONFIG_FILE)
-            config = load_config()
-            local_config = config
+            cfg = load_config()
+            local_config = cfg
 
-        """if restart:
+        if restart:
             print("restart")
             restart = False
+            d_sec_time_index = 0
+            sec_time_index = 0
+            min_time_index = 0
             get_last_data()
             time.sleep(5)
 
@@ -340,27 +318,21 @@ def osc_sender():
             time.sleep(1)
             ableton_control.send_message('/live/song/stop_playing', None)
 
-            df_drogenbos = dataframes.get("drogenbos")
-            df_viangros = dataframes.get("viangros")
-            df_viangros2 = dataframes.get("viangros2")
-            df_quaidaa = dataframes.get("quaidaa")
-            df_veterinaires = dataframes.get("veterinaires")
-            df_buda = dataframes.get("buda")
-            df_senneout = dataframes.get("senneOUT")
-            df_senneout2 = dataframes.get("senneOUT2")
-
-            drogenbos_interpol = math.floor((60 * install_duration) / len(df_drogenbos))
-            viangros_interpol = math.floor(len(df_viangros) / (60 * install_duration))
-            viangros2_interpol = math.floor(len(df_viangros2) / (60 * install_duration))
-            quaidaa_interpol = math.floor((60 * install_duration) / (len(df_quaidaa) - 1))
-            veterinaires_interpol = math.floor(len(df_veterinaires) / (60 * install_duration))
-            buda_interpol = math.floor((60 * install_duration) / len(df_buda))
-            senneout_interpol = math.floor(len(df_senneout) / (60 * install_duration))
-            senneout2_interpol = math.floor(len(df_senneout2) / (60 * install_duration))
-            print(viangros_interpol)
+            for site in sites:
+                site["df"] = dataframes.get(site["name"])
+                if site["name"] == "quaidaa":
+                    site["interpol"] = math.floor((60 * install_duration) / (len(site["df"]) - 1))
+                elif len(site["df"]) < (60 * install_duration):
+                    site["interpol"] = math.floor((60 * install_duration) / len(site["df"]))
+                elif len(site["df"]) < (60 * frequency * install_duration):
+                    site["interpol"] = 1 / math.floor(len(site["df"]) / (60 * install_duration))
+                else:
+                    site["interpol"] = 1 / math.floor(len(site["df"]) / (60 * frequency * install_duration))
+                print(f'{site["name"]}, {site["interpol"]}')
 
             time.sleep(2)
-            ableton_control.send_message('/live/song/start_playing', None)"""
+            ableton_control.send_message('/live/song/start_playing', None)
+            start_time = int(time.strftime('%H')) * 3600 + int(time.strftime('%M')) * 60 + int(time.strftime('%S'))
 
         for site in sites:
             if site["name"] == "quaidaa":
@@ -370,13 +342,12 @@ def osc_sender():
             elif site["interpol"] == 1 and len(site["df"]) > (60*install_duration):
                 site["index"] = d_sec_time_index
             elif site["interpol"] == 1 and len(site["df"]) <= (60*install_duration):
-                site["index"] = sec_time_index
+                site["index"] = sec_time_index + 1
             elif site["interpol"] > 1:
                 site["index"] = min(math.floor(sec_time_index / site["interpol"]) + 1, len(site["df"]) - 1)
 
-        print(sites[3]["index"])
-
         addr_index = 0
+        bundle = osc_bundle_builder.OscBundleBuilder(osc_bundle_builder.IMMEDIATELY)
         for site in sites:
             for data in data_names1[site["name"]]:
                 addr = local_config["addresses"][addr_index]
@@ -384,21 +355,25 @@ def osc_sender():
                 osc_addr = addr["osc_address"]
                 if site["interpol"] < 1:
                     val = site["df"][data][site["index"]]
-                elif site["interpol"] == 1:
+                elif site["interpol"] == 1 and len(site["df"]) > (60*install_duration):
                     val = site["df"][data][site["index"]]
-                elif site["interpol"] > 1:
+                elif site["interpol"] >= 1:
                     val = site["df"][data][site["index"]-1] * (((site["interpol"]*frequency-1) - (d_sec_time_index % (site["interpol"]*frequency))) /
                             (site["interpol"]*frequency-1)) + site["df"][data][site["index"]] * ((d_sec_time_index % (site["interpol"]*frequency)) / (site["interpol"]*frequency-1))
                 else:
                     val = 0.5
                 new_val = val*(vmax-vmin)+vmin
-                # mad_client.send_message(osc_addr, val)
-                ableton_client.send_message(osc_addr, new_val)
-                print(f"[THREAD] Envoi {osc_addr} = {new_val}")
+                msg = osc_message_builder.OscMessageBuilder(address=osc_addr)
+                msg.add_arg(new_val)
+                bundle.add_content(msg.build())
+                # print(f"[THREAD] Envoi {osc_addr} = {new_val}")
                 addr_index += 1
 
+        bundle = bundle.build()
+        ableton_client.send(bundle)
+
         time.sleep(1 / frequency)
-        if sec_time_index == (60 * install_duration) - 1:
+        if current_time >= (start_time + (60 * install_duration) - 1):
             restart = True
         else:
             d_sec_time_index = (d_sec_time_index + 1) % (60 * install_duration * frequency)
@@ -409,26 +384,31 @@ def osc_sender():
 # === INTERFACE FLASK ===
 @app.route("/", methods=["GET", "POST"])
 def index():
-    config = load_config()
+    conf = load_config()
     if request.method == "POST":
-        config["ip_address"] = request.form["ip_address"]
-        config["ableton_port"] = int(request.form["ableton_port"])
-        config["madmapper_port"] = int(request.form["madmapper_port"])
+        conf["ip_address"] = request.form["ip_address"]
+        conf["ableton_port"] = int(request.form["ableton_port"])
+        conf["madmapper_port"] = int(request.form["madmapper_port"])
         new_addresses = []
         n = int(request.form["count"])
-        for i in range(n):
+        for k in range(n):
             new_addresses.append({
-                "name": request.form[f"name_{i}"],
-                "osc_address": request.form[f"osc_address_{i}"],
-                "td_port": int(request.form[f"td_port_{i}"]),
-                "ableton_port": int(request.form[f"ableton_port_{i}"]),
-                "min_value": float(request.form[f"min_value_{i}"]),
-                "max_value": float(request.form[f"max_value_{i}"])
+                "name": request.form[f"name_{k}"],
+                "osc_address": request.form[f"osc_address_{k}"],
+                "min_value": float(request.form[f"min_value_{k}"]),
+                "max_value": float(request.form[f"max_value_{k}"])
             })
-        config["addresses"] = new_addresses
-        save_config(config)
+        conf["addresses"] = new_addresses
+        save_config(conf)
         return redirect(url_for("index"))
-    return render_template("index.html", config=config)
+    return render_template("index.html", config=conf)
+
+
+@app.route("/reset_config", methods=["POST"])
+def reset_config():
+    print("Reset config to default")
+    save_config(base_config)
+    return "", 204
 
 
 @app.route("/start_osc", methods=["POST"])
@@ -445,14 +425,16 @@ def start_osc():
 def stop_osc():
     global osc_running
     osc_running = False
+    ableton_control.send_message('/live/song/stop_playing', None)
     return redirect(url_for("index"))
 
-@app.route("/test_osc/<int:index>", methods=["POST"])
-def test_osc(index):
+
+@app.route("/test_osc/<int:osc_index>", methods=["POST"])
+def test_osc(osc_index):
     global ableton_client, mad_client
     cfg = load_config()
     try:
-        addr = cfg["addresses"][index]
+        addr = cfg["addresses"][osc_index]
     except IndexError:
         return jsonify({"error": "index invalide"}), 400
 

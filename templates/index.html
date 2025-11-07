@@ -11,7 +11,9 @@
     <form action="{{ url_for('start_osc') }}" method="post">
         <button id="startbutton" type="submit" style="background-color: green; color: white;">▶️ Démarrer</button>
     </form>
-
+    <form action="{{ url_for('stop_osc') }}" method="post">
+        <button id="stopbutton" type="submit" style="background-color: red; color: white;">🛑 Stopper</button>
+    </form>
     <hr>
 
     <h2>Paramètres OSC</h2>
@@ -20,7 +22,7 @@
         <input type="text" name="ip_address" value="{{ config.ip_address }}"><br><br>
 
         <label>Port MadMapper :</label>
-        <input type="number" name="td_port" value="{{ config.madmapper_port }}"><br><br>
+        <input type="number" name="madmapper_port" value="{{ config.madmapper_port }}"><br><br>
 
         <label>Port Ableton :</label>
         <input type="number" name="ableton_port" value="{{ config.ableton_port }}"><br><br>
@@ -31,8 +33,10 @@
             {% set i = loop.index0 %}
             <div class="addr-box">
                 <h3>Adresse {{ i+1 }} — {{ addr.name }}</h3>
-                <label>OSC address:</label>
+                <label>Name:</label>
                 <input type="text" name="name_{{ i }}" value="{{ addr.name }}">
+                <label>OSC address:</label>
+                <input type="text" name="osc_address_{{ i }}" value="{{ addr.osc_address }}">
                 <label>Min :</label>
                 <input type="number" step="any" name="min_value_{{ i }}" value="{{ addr.min_value }}">
                 <label>Max :</label>
@@ -41,6 +45,7 @@
             </div>
         {% endfor %}
         <input type="submit" value="Sauvegarder">
+        <button type="button" onclick="resetConfig()">Reset</button>
     </form>
 
     <script>
@@ -54,6 +59,18 @@
                 document.getElementById("testResult").innerText = `❌ Erreur : ${data.error}`;
             }
             setTimeout(() => document.getElementById("testResult").innerText = "", 3000);
+        }
+
+        async function resetConfig() {
+            if (confirm("⚠️ Voulez-vous vraiment réinitialiser la configuration ?")) {
+                const res = await fetch("/reset_config", { method: "POST" });
+                if (res.ok) {
+                    alert("✅ Configuration réinitialisée !");
+                    location.reload();
+                } else {
+                    alert("❌ Erreur lors du reset (fichier base_config.json manquant ?)");
+                }
+            }
         }
     </script>
 
