@@ -35,7 +35,7 @@ local_config = {
     "max_value": 100.0
 }
 
-install_duration = 2
+install_duration = 8
 
 # --- Authentification ---
 user = os.getenv("FLOWBRU_USER")
@@ -270,39 +270,34 @@ def save_config(config_dict):
 def osc_sender():
     global td_client, ableton_client, old_getmtime, local_config, df, osc_running
     print("OSC thread démarré.")
-    raw_time_index = 0
-    time_index = 0
+    d_sec_time_index = 0
+    sec_time_index = 0
+    min_time_index = 0
     restart = False
     frequency = 10
 
-    df_drogenbos = dataframes.get("drogenbos")
-    df_viangros = dataframes.get("viangros")
-    df_viangros2 = dataframes.get("viangros2")
-    df_quaidaa = dataframes.get("quaidaa")
-    df_veterinaires = dataframes.get("veterinaires")
-    df_buda = dataframes.get("buda")
-    df_senneout = dataframes.get("senneOUT")
-    df_senneout2 = dataframes.get("senneOUT2")
+    for site in sites:
+        site["df"] = dataframes.get(site["name"])
+        if site["name"] == "quaidaa":
+            site["interpol"] = math.floor((60 * install_duration) / (len(site["df"])-1))
+        elif len(site["df"]) < (60 * install_duration):
+            site["interpol"] = math.floor((60 * install_duration) / len(site["df"]))
+        elif len(site["df"]) < (60 * frequency * install_duration):
+            site["interpol"] = 1 / math.floor(len(site["df"]) / (60 * install_duration))
+        else:
+            site["interpol"] = 1 / math.floor(len(site["df"]) / (60 * frequency * install_duration))
+        print(f'{site["name"]}, {site["interpol"]}')
 
-    drogenbos_interpol = math.floor((60 * install_duration) / len(df_drogenbos))
-    viangros_interpol = math.floor(len(df_viangros) / (60 * install_duration))
-    viangros2_interpol = math.floor(len(df_viangros2) / (60 * install_duration))
-    quaidaa_interpol = math.floor((60 * install_duration) / (len(df_quaidaa) - 1))
-    veterinaires_interpol = math.floor(len(df_veterinaires) / (60 * install_duration))
-    buda_interpol = math.floor((60 * install_duration) / len(df_buda))
-    senneout_interpol = math.floor(len(df_senneout) / (60 * install_duration))
-    senneout2_interpol = math.floor(len(df_senneout2) / (60 * install_duration))
-    print(viangros_interpol)
 
     ableton_control.send_message('/live/song/start_playing', None)
 
     while osc_running:
         if os.path.getmtime(CONFIG_FILE) != old_getmtime:
             old_getmtime = os.path.getmtime(CONFIG_FILE)
-            config = load_config()  # recharge les paramètres à chaque boucle
+            config = load_config()
             local_config = config
 
-        if restart:
+        """if restart:
             print("restart")
             restart = False
             get_last_data()
@@ -332,52 +327,59 @@ def osc_sender():
             print(viangros_interpol)
 
             time.sleep(2)
-            ableton_control.send_message('/live/song/start_playing', None)
-            time_index = 0
-            raw_time_index = 0
+            ableton_control.send_message('/live/song/start_playing', None)"""
 
-        viangros_index = time_index*viangros_interpol
-        viangros2_index = time_index*viangros2_interpol
-        quaidaa_index = min(math.floor(time_index/quaidaa_interpol) + 1, (len(df_quaidaa) - 1))
-        veterinaires_index = time_index*veterinaires_interpol
-        buda_index = min(math.floor(time_index / buda_interpol) + 1, len(df_buda) - 1)
+        for site in sites:
+            if site["name"] == "quaidaa":
+                site["index"] = min(min_time_index + 1, (len(site["df"]) - 1))
+            elif site["interpol"] < 1:
+                site["index"] = min(sec_time_index*math.pow(site["interpol"], -1) + int((d_sec_time_index / (frequency / math.pow(site["interpol"], -1)))) % math.pow(site["interpol"], -1), (len(site["df"]) - 1))
+            elif site["interpol"] == 1 and len(site["df"]) > (60*install_duration):
+                site["index"] = d_sec_time_index
+            elif site["interpol"] == 1 and len(site["df"]) <= (60*install_duration):
+                site["index"] = sec_time_index
+            elif site["interpol"] > 1:
+                site["index"] = min(math.floor(sec_time_index / site["interpol"]) + 1, len(site["df"]) - 1)
 
+        print(sites[5]["index"])
 
         # drogenbos_level_data = df_drogenbos['level'][time_index]
         # drogenbos_mapped_data = (drogenbos_level_data * (max_val1 - min_val1) + min_val1).round(2)
 
-        viangros_temp_data = df_viangros['temp'][viangros_index]
-        viangros_temp_mapped = (viangros_temp_data * (local_config["viangros_temp_max"] - local_config["viangros_temp_min"]) + local_config["viangros_temp_min"]).round(2)
-        viangros_temp_mapped = moyenne_glissante(viangros_for_mean, viangros_temp_mapped)
-        viangros_conduct_data = df_viangros2['conduct'][viangros2_index]
-        viangros_conduct_mapped = (viangros_conduct_data * (local_config["viangros_conduct_max"] - local_config["viangros_conduct_min"]) + local_config["viangros_conduct_min"]).round(2)
+        viangros_temp_data = sites[1]["df"]["temp"][sites[1]["index"]]
+        viangros_temp_mapped = viangros_temp_data * (local_config["viangros_temp_max"] - local_config["viangros_temp_min"]) + local_config["viangros_temp_min"]
+        viangros_temp_mapped = (moyenne_glissante(viangros_for_mean, viangros_temp_mapped)).round(2)
+        # viangros_conduct_data = sites[2]["df"]["conduct"][viangros2_index]
+        # viangros_conduct_mapped = (viangros_conduct_data * (local_config["viangros_conduct_max"] - local_config["viangros_conduct_min"]) + local_config["viangros_conduct_min"]).round(2)
 
-        quaidaa_level_data = df_quaidaa['d_level'][quaidaa_index-1] * (((quaidaa_interpol-1) - (time_index % quaidaa_interpol))
-                            / (quaidaa_interpol-1)) + df_quaidaa['d_level'][quaidaa_index] * ((time_index % quaidaa_interpol) / (quaidaa_interpol-1))
+        """quaidaa_level_data = sites[3]["df"]["d_level"][quaidaa_index-1] * (((sites[3]["interpol"]-1) - (sec_time_index % sites[3]["interpol"]))
+                            / (sites[3]["interpol"]-1)) + sites[3]["df"]["d_level"][quaidaa_index] * ((sec_time_index % sites[3]["interpol"]) / (sites[3]["interpol"]-1))
         quaidaa_mapped_data = (quaidaa_level_data * (local_config["quaidaa_level_max"] - local_config["quaidaa_level_min"]) + local_config["quaidaa_level_min"]).round(2)
 
-        veterinaires_oxygen_data = df_veterinaires["oxygen"][veterinaires_index]
-        veterinaires_oxygen_mapped = (veterinaires_oxygen_data * (local_config["veterinaires_oxygen_max"] - local_config["veterinaires_oxygen_min"]) + local_config["veterinaires_oxygen_min"]).round(2)
+        veterinaires_oxygen_data = sites[4]["df"]["oxygen"][veterinaires_index]
+        veterinaires_oxygen_mapped = (veterinaires_oxygen_data * (local_config["veterinaires_oxygen_max"] - local_config["veterinaires_oxygen_min"]) + local_config["veterinaires_oxygen_min"]).round(2)"""
 
-        buda_flowrate_data = df_buda['flowrate'][buda_index-1] * (((buda_interpol-1) - (time_index % buda_interpol)) /
-                            (buda_interpol-1)) + df_buda['flowrate'][buda_index] * ((time_index % buda_interpol) / (buda_interpol-1))
+        buda_flowrate_data = sites[5]["df"]["flowrate"][sites[5]["index"]-1] * (((sites[5]["interpol"]*10-1) - (d_sec_time_index % (sites[5]["interpol"]*10))) /
+                            (sites[5]["interpol"]*10-1)) + sites[5]["df"]["flowrate"][sites[5]["index"]] * ((d_sec_time_index % (sites[5]["interpol"]*10)) / (sites[5]["interpol"]*10-1))
         buda_mapped_data = (buda_flowrate_data * (local_config["buda_flowrate_max"] - local_config["buda_flowrate_min"]) + local_config["buda_flowrate_min"]).round(2)
 
         ableton_client.send_message(local_config["viangros_address1"], viangros_temp_mapped)
-        ableton_client.send_message(local_config["viangros_address2"], viangros_conduct_mapped)
-        ableton_client.send_message(local_config["quaidaa_address1"], quaidaa_mapped_data)
-        ableton_client.send_message(local_config["veterinaires_address1"], veterinaires_oxygen_mapped)
+        # ableton_client.send_message(local_config["viangros_address2"], viangros_conduct_mapped)
+        # ableton_client.send_message(local_config["quaidaa_address1"], quaidaa_mapped_data)
+        # ableton_client.send_message(local_config["veterinaires_address1"], veterinaires_oxygen_mapped)
         ableton_client.send_message(local_config["buda_address1"], buda_mapped_data)
 
+        # print(f'Envoi OSC {local_config["viangros_address1"]}: {viangros_temp_mapped}')
         # print(f'Envoi OSC {local_config["viangros_address2"]}: {viangros_conduct_mapped}')
         # print(f'Envoi OSC {local_config["veterinaires_address1"]}: {veterinaires_oxygen_mapped}')
-        # print(f'Envoi OSC {local_config["quaidaa_address1"]}: {buda_mapped_data}')
+        print(f'Envoi OSC {local_config["quaidaa_address1"]}: {buda_mapped_data}')
         time.sleep(1 / frequency)
-        if raw_time_index == (60 * install_duration) - 1:
+        if sec_time_index == (60 * install_duration) - 1:
             restart = True
         else:
-            raw_time_index = (raw_time_index + (1/frequency)) % (60 * install_duration)
-            time_index = math.floor(raw_time_index)
+            d_sec_time_index = (d_sec_time_index + 1) % (60 * install_duration * frequency)
+            sec_time_index = math.floor(d_sec_time_index / frequency)
+            min_time_index = math.floor(sec_time_index / 60)
 
 
 # === INTERFACE FLASK ===
@@ -460,7 +462,10 @@ if __name__ == "__main__":
             "histdata": "histdata0",
             "channel": '"level"',
             "from": dates_dict["hours"],
-            "until": dates_dict["current_date_h_min"]
+            "until": dates_dict["current_date_h_min"],
+            "interpol": 0.0,
+            "df": None,
+            "index": 0
         },
         {
             "name": "viangros",
@@ -468,7 +473,10 @@ if __name__ == "__main__":
             "histdata": "histdata0",
             "channel": '"temp"',
             "from": dates_dict["days"],
-            "until": dates_dict["date_end"]
+            "until": dates_dict["date_end"],
+            "interpol": 0.0,
+            "df": None,
+            "index": 0
         },
         {
             "name": "viangros2",
@@ -476,7 +484,10 @@ if __name__ == "__main__":
             "histdata": "histdata0",
             "channel": '"conduct", "ph"',
             "from": dates_dict["months"],
-            "until": dates_dict["date_end"]
+            "until": dates_dict["date_end"],
+            "interpol": 0.0,
+            "df": None,
+            "index": 0
         },
         {
             "name": "quaidaa",
@@ -484,7 +495,10 @@ if __name__ == "__main__":
             "histdata": "histdata0",
             "channel": '"ch1", "ch9", "ch0", "ch8"',
             "from": dates_dict["minutes"],
-            "until": dates_dict["current_date_h_min"]
+            "until": dates_dict["current_date_h_min"],
+            "interpol": 0.0,
+            "df": None,
+            "index": 0
         },
         {
             "name": "veterinaires",
@@ -492,7 +506,10 @@ if __name__ == "__main__":
             "histdata": "histdata0",
             "channel": '"xch4"',
             "from": dates_dict["weeks"],
-            "until": dates_dict["date_end"]
+            "until": dates_dict["date_end"],
+            "interpol": 0.0,
+            "df": None,
+            "index": 0
         },
         {
             "name": "buda",
@@ -500,7 +517,10 @@ if __name__ == "__main__":
             "histdata": "histdata5",
             "channel": '"ch0"',
             "from": dates_dict["hours"],
-            "until": dates_dict["current_date_h_min"]
+            "until": dates_dict["current_date_h_min"],
+            "interpol": 0.0,
+            "df": None,
+            "index": 0
         },
         {
             "name": "senneOUT",
@@ -508,7 +528,10 @@ if __name__ == "__main__":
             "histdata": "histdata0",
             "channel": '"temp"',
             "from": dates_dict["days"],
-            "until": dates_dict["date_end"]
+            "until": dates_dict["date_end"],
+            "interpol": 0.0,
+            "df": None,
+            "index": 0
         },
         {
             "name": "senneOUT2",
@@ -516,7 +539,10 @@ if __name__ == "__main__":
             "histdata": "histdata0",
             "channel": '"conduct", "ph"',
             "from": dates_dict["months"],
-            "until": dates_dict["date_end"]
+            "until": dates_dict["date_end"],
+            "interpol": 0.0,
+            "df": None,
+            "index": 0
         },
 
     ]
