@@ -224,7 +224,6 @@ def process_request(site, response, local=False):
         df.rename(columns={0: "date"}, inplace=True)
         for j in range(1, len(df.columns)):
             df[j] = pd.to_numeric(df[j], errors='coerce')
-            print(df)
             if len(df[j]) > 0:
                 if max(df[j]) == min(df[j]):
                     df[j] = df[j] / max(df[j])
