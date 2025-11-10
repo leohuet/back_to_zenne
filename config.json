@@ -7,67 +7,89 @@
             "name": "drogenbos_level",
             "osc_address": "/drogenbos/1",
             "min_value": 0.0,
-            "max_value": 1.0
+            "max_value": 1.0,
+            "to_ableton": false,
+            "to_mad": false
         },
         {
             "name": "viangros_temp",
             "osc_address": "/viangros/1",
             "min_value": 0.0,
-            "max_value": 1.0
+            "max_value": 1.0,
+            "to_ableton": false,
+            "to_mad": true
         },
         {
             "name": "viangros_conduct",
             "osc_address": "/viangros/2",
             "min_value": 0.0,
-            "max_value": 1.0
+            "max_value": 1.0,
+            "to_ableton": false,
+            "to_mad": false
         },
         {
             "name": "viangros_ph",
             "osc_address": "/viangros/3",
             "min_value": 0.0,
-            "max_value": 1.0
+            "max_value": 1.0,
+            "to_ableton": false,
+            "to_mad": false
         },
         {
             "name": "quaidaa_level",
             "osc_address": "/quaidaa/1",
             "min_value": 0.0,
-            "max_value": 1.0
+            "max_value": 1.0,
+            "to_ableton": false,
+            "to_mad": false
         },
         {
             "name": "quaidaa_flowrate",
             "osc_address": "/quaidaa/2",
             "min_value": 0.0,
-            "max_value": 1.0
+            "max_value": 1.0,
+            "to_ableton": false,
+            "to_mad": true
         },
         {
             "name": "veterinaires_oxygen",
             "osc_address": "/veterinaires/1",
             "min_value": 0.0,
-            "max_value": 1.0
+            "max_value": 1.0,
+            "to_ableton": false,
+            "to_mad": false
         },
         {
             "name": "buda_flowrate",
             "osc_address": "/buda/1",
             "min_value": 0.0,
-            "max_value": 1.0
+            "max_value": 1.0,
+            "to_ableton": false,
+            "to_mad": false
         },
         {
             "name": "senneout_temp",
             "osc_address": "/senneout/1",
             "min_value": 0.0,
-            "max_value": 1.0
+            "max_value": 1.0,
+            "to_ableton": false,
+            "to_mad": false
         },
         {
             "name": "senneout_conduct",
             "osc_address": "/senneout/2",
             "min_value": 0.0,
-            "max_value": 1.0
+            "max_value": 1.0,
+            "to_ableton": false,
+            "to_mad": true
         },
         {
             "name": "senneout_ph",
             "osc_address": "/senneout/3",
             "min_value": 0.0,
-            "max_value": 1.0
+            "max_value": 1.0,
+            "to_ableton": false,
+            "to_mad": false
         }
     ]
 }

@@ -41,7 +41,12 @@
                 <input type="number" step="any" name="min_value_{{ i }}" value="{{ addr.min_value }}">
                 <label>Max :</label>
                 <input type="number" step="any" name="max_value_{{ i }}" value="{{ addr.max_value }}">
+                <label>send to Ableton :</label>
+                <input type="checkbox" name="to_ableton_{{ i }}" value="1" {% if addr.to_ableton %}checked{% endif %}>
+                <label>send to Madmapper :</label>
+                <input type="checkbox" name="to_mad_{{ i }}" value="1" {% if addr.to_mad %}checked{% endif %}>
                 <button type="button" class="testBtn" onclick="testOSC({{ i }})">💡 Tester cette adresse</button><br><br>
+
             </div>
         {% endfor %}
         <input type="submit" value="Sauvegarder">

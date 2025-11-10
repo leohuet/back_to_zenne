@@ -26,67 +26,89 @@ base_config = {
             "name": "drogenbos_level",
             "osc_address": "/drogenbos/1",
             "min_value": 0.0,
-            "max_value": 1.0
+            "max_value": 1.0,
+            "to_ableton": False,
+            "to_mad": False
         },
         {
             "name": "viangros_temp",
             "osc_address": "/viangros/1",
             "min_value": 0.0,
-            "max_value": 1.0
+            "max_value": 1.0,
+            "to_ableton": False,
+            "to_mad": False
         },
         {
             "name": "viangros_conduct",
             "osc_address": "/viangros/2",
             "min_value": 0.0,
-            "max_value": 1.0
+            "max_value": 1.0,
+            "to_ableton": False,
+            "to_mad": False
         },
         {
             "name": "viangros_ph",
             "osc_address": "/viangros/3",
             "min_value": 0.0,
-            "max_value": 1.0
+            "max_value": 1.0,
+            "to_ableton": False,
+            "to_mad": False
         },
         {
             "name": "quaidaa_level",
             "osc_address": "/quaidaa/1",
             "min_value": 0.0,
-            "max_value": 1.0
+            "max_value": 1.0,
+            "to_ableton": False,
+            "to_mad": False
         },
         {
             "name": "quaidaa_flowrate",
             "osc_address": "/quaidaa/2",
             "min_value": 0.0,
-            "max_value": 1.0
+            "max_value": 1.0,
+            "to_ableton": False,
+            "to_mad": False
         },
         {
             "name": "veterinaires_oxygen",
             "osc_address": "/veterinaires/1",
             "min_value": 0.0,
-            "max_value": 1.0
+            "max_value": 1.0,
+            "to_ableton": False,
+            "to_mad": False
         },
         {
             "name": "buda_flowrate",
             "osc_address": "/buda/1",
             "min_value": 0.0,
-            "max_value": 1.0
+            "max_value": 1.0,
+            "to_ableton": False,
+            "to_mad": False
         },
         {
             "name": "senneout_temp",
             "osc_address": "/senneout/1",
             "min_value": 0.0,
-            "max_value": 1.0
+            "max_value": 1.0,
+            "to_ableton": False,
+            "to_mad": False
         },
         {
             "name": "senneout_conduct",
             "osc_address": "/senneout/2",
             "min_value": 0.0,
-            "max_value": 1.0
+            "max_value": 1.0,
+            "to_ableton": False,
+            "to_mad": False
         },
         {
             "name": "senneout_ph",
             "osc_address": "/senneout/3",
             "min_value": 0.0,
-            "max_value": 1.0
+            "max_value": 1.0,
+            "to_ableton": False,
+            "to_mad": False
         }
     ]
 }
@@ -318,7 +340,8 @@ def osc_sender():
             time.sleep(1)
             ableton_control.send_message('/live/song/stop_playing', None)
             addr_index = 0
-            new_bundle = osc_bundle_builder.OscBundleBuilder(osc_bundle_builder.IMMEDIATELY)
+            new_ableton_bundle = osc_bundle_builder.OscBundleBuilder(osc_bundle_builder.IMMEDIATELY)
+            new_mad_bundle = osc_bundle_builder.OscBundleBuilder(osc_bundle_builder.IMMEDIATELY)
             for site in sites:
                 for data in data_names1[site["name"]]:
                     addr = local_config["addresses"][addr_index]
@@ -328,12 +351,17 @@ def osc_sender():
                     new_val = val * (vmax - vmin) + vmin
                     msg = osc_message_builder.OscMessageBuilder(address=osc_addr)
                     msg.add_arg(new_val)
-                    new_bundle.add_content(msg.build())
+                    if addr["to_ableton"]:
+                        new_ableton_bundle.add_content(msg.build())
+                    elif addr["to_mad"]:
+                        new_mad_bundle.add_content(msg.build())
                     # print(f"[THREAD] Envoi {osc_addr} = {new_val}")
                     addr_index += 1
 
-            new_bundle = new_bundle.build()
-            ableton_client.send(new_bundle)
+            new_ableton_bundle = new_ableton_bundle.build()
+            ableton_client.send(new_ableton_bundle)
+            new_mad_bundle = new_mad_bundle.build()
+            mad_client.send(new_mad_bundle)
 
             for site in sites:
                 site["df"] = dataframes.get(site["name"])
@@ -364,7 +392,8 @@ def osc_sender():
                 site["index"] = min(math.floor(sec_time_index / site["interpol"]) + 1, len(site["df"]) - 1)
 
         addr_index = 0
-        bundle = osc_bundle_builder.OscBundleBuilder(osc_bundle_builder.IMMEDIATELY)
+        ableton_bundle = osc_bundle_builder.OscBundleBuilder(osc_bundle_builder.IMMEDIATELY)
+        mad_bundle = osc_bundle_builder.OscBundleBuilder(osc_bundle_builder.IMMEDIATELY)
         for site in sites:
             for data in data_names1[site["name"]]:
                 addr = local_config["addresses"][addr_index]
@@ -381,13 +410,17 @@ def osc_sender():
                     val = 0.5
                 new_val = val*(vmax-vmin)+vmin
                 msg = osc_message_builder.OscMessageBuilder(address=osc_addr)
-                msg.add_arg(new_val)
-                bundle.add_content(msg.build())
+                if addr["to_ableton"]:
+                    ableton_bundle.add_content(msg.build())
+                elif addr["to_mad"]:
+                    mad_bundle.add_content(msg.build())
                 # print(f"[THREAD] Envoi {osc_addr} = {new_val}")
                 addr_index += 1
 
-        bundle = bundle.build()
-        ableton_client.send(bundle)
+        ableton_bundle = ableton_bundle.build()
+        ableton_client.send(ableton_bundle)
+        mad_bundle = mad_bundle.build()
+        mad_client.send(mad_bundle)
 
         time.sleep(1 / frequency)
         if current_time >= (start_time + (60 * install_duration) - 1):
@@ -413,7 +446,9 @@ def index():
                 "name": request.form[f"name_{k}"],
                 "osc_address": request.form[f"osc_address_{k}"],
                 "min_value": float(request.form[f"min_value_{k}"]),
-                "max_value": float(request.form[f"max_value_{k}"])
+                "max_value": float(request.form[f"max_value_{k}"]),
+                "to_ableton": request.form.get(f"to_ableton_{k}") == "1",
+                "to_mad": request.form.get(f"to_mad_{k}") == "1"
             })
         conf["addresses"] = new_addresses
         save_config(conf)
@@ -459,10 +494,14 @@ def test_osc(osc_index):
     osc_addr = addr["osc_address"]
 
     val = (vmax + vmin) / 2
-
-    mad_client.send_message(osc_addr, val)
-    ableton_client.send_message(osc_addr, val)
-    print(f"[TEST] {osc_addr} = {val}")
+    if addr["to_ableton"]:
+        ableton_client.send_message(osc_addr, val)
+        print(f"[TEST] to ableton, {osc_addr} = {val}")
+    elif addr["to_mad"]:
+        mad_client.send_message(osc_addr, val)
+        print(f"[TEST] to mad, {osc_addr} = {val}")
+    else:
+        print("Select an OSC output to send a test!")
 
     return jsonify({"sent": True, "address": osc_addr, "value": val})
 
