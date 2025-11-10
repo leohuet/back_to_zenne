@@ -203,11 +203,18 @@ def process_request(site, response, local=False):
     try:
         if not local and response.status_code == 200:
             data = response.json()
-            with open(f"{site['name']}.json", "w") as f:
-                json.dump(data, f, indent=4)
+            df = pd.DataFrame(data)
+            if len(df) > 0:
+                print("saving to JSON")
+                with open(f"{site['name']}.json", "w") as f:
+                    json.dump(data, f, indent=4)
+            else:
+                with open(f"{site['name']}.json", "r") as f:
+                    data = json.load(f)
         else:
             with open(f"{site['name']}.json", "r") as f:
                 data = json.load(f)
+
         df = pd.DataFrame(data)
         # cleaning timestamp
         if 't' in df.columns:
@@ -217,7 +224,12 @@ def process_request(site, response, local=False):
         df.rename(columns={0: "date"}, inplace=True)
         for j in range(1, len(df.columns)):
             df[j] = pd.to_numeric(df[j], errors='coerce')
-            df[j] = (df[j] - min(df[j])) / (max(df[j]) - min(df[j]))
+            print(df)
+            if len(df[j]) > 0:
+                if max(df[j]) == min(df[j]):
+                    df[j] = df[j] / max(df[j])
+                else:
+                    df[j] = (df[j] - min(df[j])) / (max(df[j]) - min(df[j]))
             df = df[df[j].notna()]
             df[j] = df[j].round(2)
             df.rename(columns={j: data_names[site['name']][j - 1]}, inplace=True)
@@ -359,9 +371,11 @@ def osc_sender():
                     addr_index += 1
 
             new_ableton_bundle = new_ableton_bundle.build()
-            ableton_client.send(new_ableton_bundle)
+            if new_ableton_bundle.size > 16:
+                ableton_client.send(new_ableton_bundle)
             new_mad_bundle = new_mad_bundle.build()
-            mad_client.send(new_mad_bundle)
+            if new_mad_bundle.size > 16:
+                mad_client.send(new_mad_bundle)
 
             for site in sites:
                 site["df"] = dataframes.get(site["name"])
@@ -418,9 +432,11 @@ def osc_sender():
                 addr_index += 1
 
         ableton_bundle = ableton_bundle.build()
-        ableton_client.send(ableton_bundle)
+        if ableton_bundle.size > 16:
+            ableton_client.send(ableton_bundle)
         mad_bundle = mad_bundle.build()
-        mad_client.send(mad_bundle)
+        if mad_bundle.size > 16:
+            mad_client.send(mad_bundle)
 
         time.sleep(1 / frequency)
         if current_time >= (start_time + (60 * install_duration) - 1):
