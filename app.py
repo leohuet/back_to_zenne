@@ -226,7 +226,7 @@ def process_request(site, response, local=False):
             df[j] = pd.to_numeric(df[j], errors='coerce')
             if len(df[j]) > 0:
                 if max(df[j]) == min(df[j]):
-                    df[j] = df[j] / max(df[j])
+                    df[j] = df[j] / max(df[j]) / 2
                 else:
                     df[j] = (df[j] - min(df[j])) / (max(df[j]) - min(df[j]))
             df = df[df[j].notna()]
@@ -423,9 +423,10 @@ def osc_sender():
                     val = 0.5
                 new_val = val*(vmax-vmin)+vmin
                 msg = osc_message_builder.OscMessageBuilder(address=osc_addr)
+                msg.add_arg(new_val)
                 if addr["to_ableton"]:
                     ableton_bundle.add_content(msg.build())
-                elif addr["to_mad"]:
+                if addr["to_mad"]:
                     mad_bundle.add_content(msg.build())
                 # print(f"[THREAD] Envoi {osc_addr} = {new_val}")
                 addr_index += 1

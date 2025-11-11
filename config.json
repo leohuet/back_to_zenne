@@ -8,7 +8,7 @@
             "osc_address": "/drogenbos/1",
             "min_value": 0.0,
             "max_value": 1.0,
-            "to_ableton": false,
+            "to_ableton": true,
             "to_mad": false
         },
         {
@@ -16,7 +16,7 @@
             "osc_address": "/viangros/1",
             "min_value": 0.0,
             "max_value": 1.0,
-            "to_ableton": false,
+            "to_ableton": true,
             "to_mad": false
         },
         {
@@ -40,7 +40,7 @@
             "osc_address": "/quaidaa/1",
             "min_value": 0.0,
             "max_value": 1.0,
-            "to_ableton": false,
+            "to_ableton": true,
             "to_mad": false
         },
         {
@@ -56,7 +56,7 @@
             "osc_address": "/veterinaires/1",
             "min_value": 0.0,
             "max_value": 1.0,
-            "to_ableton": false,
+            "to_ableton": true,
             "to_mad": false
         },
         {
