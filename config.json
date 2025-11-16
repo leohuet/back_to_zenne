@@ -1,6 +1,6 @@
 {
     "ip_address": "127.0.0.1",
-    "ableton_port": 8001,
+    "ableton_port": 8002,
     "madmapper_port": 9001,
     "addresses": [
         {
@@ -8,6 +8,7 @@
             "osc_address": "/drogenbos/1",
             "min_value": 0.0,
             "max_value": 1.0,
+            "from": "realtime",
             "to_ableton": true,
             "to_mad": false
         },
@@ -16,6 +17,7 @@
             "osc_address": "/viangros/1",
             "min_value": 0.0,
             "max_value": 1.0,
+            "from": 10,
             "to_ableton": true,
             "to_mad": false
         },
@@ -24,6 +26,7 @@
             "osc_address": "/viangros/2",
             "min_value": 0.0,
             "max_value": 1.0,
+            "from": 30,
             "to_ableton": false,
             "to_mad": false
         },
@@ -32,6 +35,7 @@
             "osc_address": "/viangros/3",
             "min_value": 0.0,
             "max_value": 1.0,
+            "from": "none",
             "to_ableton": false,
             "to_mad": false
         },
@@ -40,6 +44,7 @@
             "osc_address": "/quaidaa/1",
             "min_value": 0.0,
             "max_value": 1.0,
+            "from": "realtime",
             "to_ableton": true,
             "to_mad": false
         },
@@ -48,6 +53,7 @@
             "osc_address": "/quaidaa/2",
             "min_value": 0.0,
             "max_value": 1.0,
+            "from": "realtime",
             "to_ableton": false,
             "to_mad": false
         },
@@ -56,6 +62,7 @@
             "osc_address": "/veterinaires/1",
             "min_value": 0.0,
             "max_value": 1.0,
+            "from": 7,
             "to_ableton": true,
             "to_mad": false
         },
@@ -64,7 +71,8 @@
             "osc_address": "/buda/1",
             "min_value": 0.0,
             "max_value": 1.0,
-            "to_ableton": false,
+            "from": "realtime",
+            "to_ableton": true,
             "to_mad": false
         },
         {
@@ -72,6 +80,7 @@
             "osc_address": "/senneout/1",
             "min_value": 0.0,
             "max_value": 1.0,
+            "from": 10,
             "to_ableton": false,
             "to_mad": false
         },
@@ -80,6 +89,7 @@
             "osc_address": "/senneout/2",
             "min_value": 0.0,
             "max_value": 1.0,
+            "from": 30,
             "to_ableton": false,
             "to_mad": false
         },
@@ -88,6 +98,7 @@
             "osc_address": "/senneout/3",
             "min_value": 0.0,
             "max_value": 1.0,
+            "from": "none",
             "to_ableton": false,
             "to_mad": false
         }

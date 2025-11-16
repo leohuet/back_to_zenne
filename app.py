@@ -27,6 +27,7 @@ base_config = {
             "osc_address": "/drogenbos/1",
             "min_value": 0.0,
             "max_value": 1.0,
+            "from": "realtime",
             "to_ableton": False,
             "to_mad": False
         },
@@ -35,6 +36,7 @@ base_config = {
             "osc_address": "/viangros/1",
             "min_value": 0.0,
             "max_value": 1.0,
+            "from": 10,
             "to_ableton": False,
             "to_mad": False
         },
@@ -43,6 +45,7 @@ base_config = {
             "osc_address": "/viangros/2",
             "min_value": 0.0,
             "max_value": 1.0,
+            "from": 30,
             "to_ableton": False,
             "to_mad": False
         },
@@ -51,6 +54,7 @@ base_config = {
             "osc_address": "/viangros/3",
             "min_value": 0.0,
             "max_value": 1.0,
+            "from": "none",
             "to_ableton": False,
             "to_mad": False
         },
@@ -59,6 +63,7 @@ base_config = {
             "osc_address": "/quaidaa/1",
             "min_value": 0.0,
             "max_value": 1.0,
+            "from": "realtime",
             "to_ableton": False,
             "to_mad": False
         },
@@ -67,6 +72,7 @@ base_config = {
             "osc_address": "/quaidaa/2",
             "min_value": 0.0,
             "max_value": 1.0,
+            "from": "realtime",
             "to_ableton": False,
             "to_mad": False
         },
@@ -75,6 +81,7 @@ base_config = {
             "osc_address": "/veterinaires/1",
             "min_value": 0.0,
             "max_value": 1.0,
+            "from": 7,
             "to_ableton": False,
             "to_mad": False
         },
@@ -83,6 +90,7 @@ base_config = {
             "osc_address": "/buda/1",
             "min_value": 0.0,
             "max_value": 1.0,
+            "from": "realtime",
             "to_ableton": False,
             "to_mad": False
         },
@@ -91,6 +99,7 @@ base_config = {
             "osc_address": "/senneout/1",
             "min_value": 0.0,
             "max_value": 1.0,
+            "from": 10,
             "to_ableton": False,
             "to_mad": False
         },
@@ -99,6 +108,7 @@ base_config = {
             "osc_address": "/senneout/2",
             "min_value": 0.0,
             "max_value": 1.0,
+            "from": 30,
             "to_ableton": False,
             "to_mad": False
         },
@@ -107,6 +117,7 @@ base_config = {
             "osc_address": "/senneout/3",
             "min_value": 0.0,
             "max_value": 1.0,
+            "from": "none",
             "to_ableton": False,
             "to_mad": False
         }
@@ -147,23 +158,26 @@ for i in range(size_mean):
 def get_relative_dates():
     # retrieve all dates for API calls
     global install_duration
+    date_config = load_config()
     fmt = "%Y%m%d%H%M"
     fmt_day = "%Y%m%d0000"
+    fmt2 = "%Y%m%d"
     now = datetime.now(timezone.utc) - timedelta(minutes=30)
+    times = []
+
+    for index, address in enumerate(date_config['addresses']):
+        if address['from'] == "none" or address['from'] == "realtime":
+            continue
+        times.append((now - timedelta(days=address['from'])).strftime(fmt_day))
+        print(times)
 
     # relative to now dates
-    minutes_ago = now - timedelta(minutes=install_duration+1)
-    hours_ago = now - timedelta(hours=install_duration)
-    days_ago = now - timedelta(days=install_duration)
-    weeks_ago = now - timedelta(weeks=1)
-    months_ago = now - timedelta(days=30)
+    minutes_date = (now - timedelta(minutes=install_duration+1)).strftime(fmt)
+    hours_date = (now - timedelta(hours=install_duration)).strftime(fmt)
+    days_date = (now - timedelta(days=install_duration)).strftime(fmt_day)
+    weeks_date = (now - timedelta(weeks=1)).strftime(fmt_day)
+    months_date = (now - timedelta(days=30)).strftime(fmt_day)
 
-    # date format
-    minutes_date = minutes_ago.strftime(fmt)
-    hours_date = hours_ago.strftime(fmt)
-    days_date = days_ago.strftime(fmt_day)
-    weeks_date = weeks_ago.strftime(fmt_day)
-    months_date = months_ago.strftime(fmt_day)
     date_end = now.strftime(fmt_day)
     current_datehmin = now.strftime(fmt)
 
@@ -174,7 +188,12 @@ def get_relative_dates():
         "weeks": weeks_date,
         "months": months_date,
         "date_end": date_end,
-        "current_date_h_min": current_datehmin
+        "current_date_h_min": current_datehmin,
+        "viangros": times[0],
+        "viangros2": times[1],
+        "veterinaires": times[2],
+        "senneOUT": times[3],
+        "senneOUT2": times[4]
     }
 
 
@@ -331,6 +350,7 @@ def osc_sender():
 
     ableton_control.send_message('/live/song/start_playing', None)
     start_time = int(time.strftime('%H')) * 3600 + int(time.strftime('%M')) * 60 + int(time.strftime('%S'))
+
     while osc_running:
         current_time = int(time.strftime('%H')) * 3600 + int(time.strftime('%M')) * 60 + int(time.strftime('%S'))
         if os.path.getmtime(CONFIG_FILE) != old_getmtime:
@@ -358,10 +378,10 @@ def osc_sender():
                     addr = local_config["addresses"][addr_index]
                     vmin, vmax = float(addr["min_value"]), float(addr["max_value"])
                     osc_addr = addr["osc_address"]
-                    val = site["df"][data][0]
-                    new_val = val * (vmax - vmin) + vmin
+                    restart_val = float(site["df"][data][0])
+                    restart_new_val = restart_val * (vmax - vmin) + vmin
                     msg = osc_message_builder.OscMessageBuilder(address=osc_addr)
-                    msg.add_arg(new_val)
+                    msg.add_arg(restart_new_val)
                     if addr["to_ableton"]:
                         new_ableton_bundle.add_content(msg.build())
                     elif addr["to_mad"]:
@@ -463,9 +483,14 @@ def index():
                 "osc_address": request.form[f"osc_address_{k}"],
                 "min_value": float(request.form[f"min_value_{k}"]),
                 "max_value": float(request.form[f"max_value_{k}"]),
+                "from": int(request.form[f"from_{k}"]),
                 "to_ableton": request.form.get(f"to_ableton_{k}") == "1",
                 "to_mad": request.form.get(f"to_mad_{k}") == "1"
             })
+            if new_addresses[k]["from"] == -1:
+                new_addresses[k]["from"] = "realtime"
+            elif new_addresses[k]["from"] == -2:
+                new_addresses[k]["from"] = "none"
         conf["addresses"] = new_addresses
         save_config(conf)
         return redirect(url_for("index"))
@@ -549,7 +574,7 @@ if __name__ == "__main__":
             "uid": "4B8483DD3257BAD9",
             "histdata": "histdata0",
             "channel": '"temp"',
-            "from": dates_dict["days"],
+            "from": dates_dict["viangros"],
             "until": dates_dict["date_end"],
             "interpol": 0.0,
             "df": None,
@@ -560,7 +585,7 @@ if __name__ == "__main__":
             "uid": "4B8483DD3257BAD9",
             "histdata": "histdata0",
             "channel": '"conduct", "ph"',
-            "from": dates_dict["months"],
+            "from": dates_dict["viangros2"],
             "until": dates_dict["date_end"],
             "interpol": 0.0,
             "df": None,
@@ -582,7 +607,7 @@ if __name__ == "__main__":
             "uid": "4A26A91BCA0FE58C",
             "histdata": "histdata0",
             "channel": '"xch4"',
-            "from": dates_dict["weeks"],
+            "from": dates_dict["veterinaires"],
             "until": dates_dict["date_end"],
             "interpol": 0.0,
             "df": None,
@@ -604,7 +629,7 @@ if __name__ == "__main__":
             "uid": "4B845F9C7151AC54",
             "histdata": "histdata0",
             "channel": '"temp"',
-            "from": dates_dict["days"],
+            "from": dates_dict["senneOUT"],
             "until": dates_dict["date_end"],
             "interpol": 0.0,
             "df": None,
@@ -615,7 +640,7 @@ if __name__ == "__main__":
             "uid": "4B845F9C7151AC54",
             "histdata": "histdata0",
             "channel": '"conduct", "ph"',
-            "from": dates_dict["months"],
+            "from": dates_dict["senneOUT2"],
             "until": dates_dict["date_end"],
             "interpol": 0.0,
             "df": None,
