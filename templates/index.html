@@ -2,45 +2,41 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>Configuration OSC</title>
+    <title>Programm configuration</title>
 </head>
 <body>
     <h1>Back to Zenne</h1>
 
     <!-- Boutons de contrôle -->
     <form action="{{ url_for('start_osc') }}" method="post">
-        <button id="startbutton" type="submit" style="background-color: green; color: white;">▶️ Démarrer</button>
+        <button id="startbutton" type="submit" style="background-color: green; color: white;">▶️ Start</button>
     </form>
     <form action="{{ url_for('stop_osc') }}" method="post">
-        <button id="stopbutton" type="submit" style="background-color: red; color: white;">🛑 Stopper</button>
+        <button id="stopbutton" type="submit" style="background-color: red; color: white;">🛑 Stop</button>
     </form>
     <hr>
 
-    <h2>Paramètres OSC</h2>
+    <h2>OSC Parameters</h2>
     <form method="post">
-        <label>IP :</label>
-        <input type="text" name="ip_address" value="{{ config.ip_address }}"><br><br>
-
-        <label>Port MadMapper :</label>
+        <label>MadMapper port: </label>
         <input type="number" name="madmapper_port" value="{{ config.madmapper_port }}"><br><br>
-
-        <label>Port Ableton :</label>
+        <label>Ableton port: </label>
         <input type="number" name="ableton_port" value="{{ config.ableton_port }}"><br><br>
 
-        <h2>Filtrage des données</h2>
+        <h2>Data processing</h2>
         <input type="hidden" name="count" value="{{ config.addresses|length }}">
         {% for addr in config.addresses %}
             {% set i = loop.index0 %}
             <div class="addr-box">
-                <h3>Adresse {{ i+1 }} — {{ addr.name }}</h3>
+                <h3>Address {{ i+1 }} — {{ addr.name }}</h3>
                 <label>Name: </label>
                 <input type="text" name="name_{{ i }}" value="{{ addr.name }}">
                 <label>OSC address: </label>
                 <input type="text" name="osc_address_{{ i }}" value="{{ addr.osc_address }}">
                 <label>Min: </label>
-                <input type="number" step="any" name="min_value_{{ i }}" value="{{ addr.min_value }}">
+                <input type="number" step="any" min="0.0" name="min_value_{{ i }}" value="{{ addr.min_value }}">
                 <label>Max: </label>
-                <input type="number" step="any" name="max_value_{{ i }}" value="{{ addr.max_value }}">
+                <input type="number" step="any" min="0.1" name="max_value_{{ i }}" value="{{ addr.max_value }}">
                 {% if addr.from != "none" and addr.from != "realtime" %}
                 <label>From (in days): </label>
                 <input type="number" step="1" min="2" max="100" name="from_{{ i }}" value="{{ addr.from }}">
@@ -48,7 +44,7 @@
                 <label>realtime data</label>
                 <input type="number" name="from_{{ i }}" value="-1" style="display:none;">
                 {% else %}
-                <label>from value linked to above</label>
+                <label>"from" value linked to above</label>
                 <input type="number" name="from_{{ i }}" value="-2" style="display:none;">
                 {% endif %}
                 <br>
@@ -57,11 +53,11 @@
                 <input type="checkbox" name="to_ableton_{{ i }}" value="1" {% if addr.to_ableton %}checked{% endif %}>
                 <label>send to Madmapper :</label>
                 <input type="checkbox" name="to_mad_{{ i }}" value="1" {% if addr.to_mad %}checked{% endif %}>
-                <button type="button" class="testBtn" onclick="testOSC({{ i }})">💡 Tester cette adresse</button><br><br>
+                <button type="button" class="testBtn" onclick="testOSC({{ i }})">💡 OSC test</button><br><br>
 
             </div>
         {% endfor %}
-        <input type="submit" value="Sauvegarder">
+        <input type="submit" value="Save">
         <button type="button" onclick="resetConfig()">Reset</button>
     </form>
 

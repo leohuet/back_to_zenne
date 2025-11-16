@@ -472,7 +472,6 @@ def osc_sender():
 def index():
     conf = load_config()
     if request.method == "POST":
-        conf["ip_address"] = request.form["ip_address"]
         conf["ableton_port"] = int(request.form["ableton_port"])
         conf["madmapper_port"] = int(request.form["madmapper_port"])
         new_addresses = []
