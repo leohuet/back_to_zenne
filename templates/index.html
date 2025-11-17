@@ -7,7 +7,7 @@
 <body>
     <h1>Back to Zenne</h1>
 
-    <!-- Boutons de contrôle -->
+    <!-- Control buttons -->
     <form action="{{ url_for('start_osc') }}" method="post">
         <button id="startbutton" type="submit" style="background-color: green; color: white;">▶️ Start</button>
     </form>
@@ -16,14 +16,17 @@
     </form>
     <hr>
 
-    <h2>OSC Parameters</h2>
+    <h2>Global Parameters</h2>
     <form method="post">
-        <label>MadMapper port: </label>
+        <label>Loop duration (in seconds): </label>
+        <input type="number" step="1" min="60" name="install_duration" value="{{ config.install_duration }}"><br><br>
+        <label>MadMapper OSC port: </label>
         <input type="number" name="madmapper_port" value="{{ config.madmapper_port }}"><br><br>
-        <label>Ableton port: </label>
+        <label>Ableton OSC port: </label>
         <input type="number" name="ableton_port" value="{{ config.ableton_port }}"><br><br>
 
         <h2>Data processing</h2>
+        <!-- Data parameters (for each data = OSC, min, max, duration for API call) -->
         <input type="hidden" name="count" value="{{ config.addresses|length }}">
         {% for addr in config.addresses %}
             {% set i = loop.index0 %}
@@ -62,14 +65,13 @@
     </form>
 
     <script>
-
         async function testOSC(index) {
             const res = await fetch(`/test_osc/${index}`, { method: "POST" });
             const data = await res.json();
             if (data.sent) {
                 document.getElementById("testResult").innerText = `✅ ${data.address} → ${data.value}`;
             } else {
-                document.getElementById("testResult").innerText = `❌ Erreur : ${data.error}`;
+                document.getElementById("testResult").innerText = `❌ Error : ${data.error}`;
             }
             setTimeout(() => document.getElementById("testResult").innerText = "", 3000);
         }
@@ -81,7 +83,7 @@
                     alert("✅ Configuration réinitialisée !");
                     location.reload();
                 } else {
-                    alert("❌ Erreur lors du reset (fichier base_config.json manquant ?)");
+                    alert("❌ Erreur lors du reset");
                 }
             }
         }

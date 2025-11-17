@@ -1,6 +1,7 @@
 {
+    "install_duration": 120,
     "ip_address": "127.0.0.1",
-    "ableton_port": 8002,
+    "ableton_port": 8001,
     "madmapper_port": 9001,
     "addresses": [
         {

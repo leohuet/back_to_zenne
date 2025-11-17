@@ -18,6 +18,7 @@ load_dotenv(dotenv_path)
 app = Flask(__name__)
 CONFIG_FILE = "config.json"
 base_config = {
+    "install_duration": 120,
     "ip_address": "127.0.0.1",
     "ableton_port": 8001,
     "madmapper_port": 9001,
@@ -124,14 +125,13 @@ base_config = {
     ]
 }
 local_config = {}
+# only get new json data when the modification time changed
 old_getmtime = 1000
 
 # OSC parameters
 abletonOSC_port = 11000
 osc_thread = None
 osc_running = False
-
-install_duration = 2
 
 # --- Authentification ---
 user = os.getenv("FLOWBRU_USER")
@@ -157,24 +157,25 @@ for i in range(size_mean):
 
 def get_relative_dates():
     # retrieve all dates for API calls
-    global install_duration
     date_config = load_config()
     fmt = "%Y%m%d%H%M"
     fmt_day = "%Y%m%d0000"
-    fmt2 = "%Y%m%d"
     now = datetime.now(timezone.utc) - timedelta(minutes=30)
     times = []
 
+    # retrieve time duration for each call from the config file
     for index, address in enumerate(date_config['addresses']):
         if address['from'] == "none" or address['from'] == "realtime":
             continue
         times.append((now - timedelta(days=address['from'])).strftime(fmt_day))
         print(times)
 
+    install_min_dur = math.ceil(date_config["install_duration"] / 60)
+
     # relative to now dates
-    minutes_date = (now - timedelta(minutes=install_duration+1)).strftime(fmt)
-    hours_date = (now - timedelta(hours=install_duration)).strftime(fmt)
-    days_date = (now - timedelta(days=install_duration)).strftime(fmt_day)
+    minutes_date = (now - timedelta(minutes=install_min_dur+1)).strftime(fmt)
+    hours_date = (now - timedelta(hours=install_min_dur)).strftime(fmt)
+    days_date = (now - timedelta(days=install_min_dur)).strftime(fmt_day)
     weeks_date = (now - timedelta(weeks=1)).strftime(fmt_day)
     months_date = (now - timedelta(days=30)).strftime(fmt_day)
 
@@ -197,7 +198,7 @@ def get_relative_dates():
     }
 
 
-def moyenne_glissante(data_array, new_value):
+def rolling_average(data_array, new_value):
     global size_mean
     data_array.append(new_value)
     if len(data_array) > size_mean:
@@ -205,14 +206,13 @@ def moyenne_glissante(data_array, new_value):
     return sum(data_array) / len(data_array)
 
 
-def corriger_date_brute(date_str):
-    # Fonction pour corriger les dates
+def correct_raw_date(date_str):
     date_str = str(date_str).strip()
     date_str = ''.join(filter(str.isdigit, date_str))
-    # Tronquer si trop long
+    # cut if too long
     if len(date_str) > 12:
         date_str = date_str[:12]
-    # Compléter avec des zéros à droite si trop court
+    # complete with zeros if too short
     while len(date_str) < 12:
         date_str += '0'
     return date_str
@@ -220,9 +220,11 @@ def corriger_date_brute(date_str):
 
 def process_request(site, response, local=False):
     try:
+        # if call was successful
         if not local and response.status_code == 200:
             data = response.json()
             df = pd.DataFrame(data)
+            # if df is not empty
             if len(df) > 0:
                 print("saving to JSON")
                 with open(f"{site['name']}.json", "w") as f:
@@ -241,6 +243,7 @@ def process_request(site, response, local=False):
             df = df.drop(columns=['t'])
 
         df.rename(columns={0: "date"}, inplace=True)
+        # for each data column, process and normalize
         for j in range(1, len(df.columns)):
             df[j] = pd.to_numeric(df[j], errors='coerce')
             if len(df[j]) > 0:
@@ -254,10 +257,11 @@ def process_request(site, response, local=False):
 
         df['site'] = site['name']
 
-        # data correction
-        df['date'] = df['date'].apply(corriger_date_brute)
+        # date correction
+        df['date'] = df['date'].apply(correct_raw_date)
         df = df[df['date'].notna()]
         df['date'] = pd.to_datetime(df['date'], format='%Y%m%d%H%M', errors='coerce')
+
         dataframes[site["name"]] = df
         print(f"{site['name'].capitalize()} - {len(df)} lignes")
         print(df.head(), '\n')
@@ -336,16 +340,25 @@ def osc_sender():
     restart = False
     frequency = 10
 
+    # if config file changed, get the new config
+    if os.path.getmtime(CONFIG_FILE) != old_getmtime:
+        old_getmtime = os.path.getmtime(CONFIG_FILE)
+        cfg = load_config()
+        local_config = cfg
+
+    # for each site, compute the interpolation
+    # if interpol > 1, it means there is less data than the duration of the loop
+    # if interpol < 1, it means there is too much data and some will be skipped
     for site in sites:
         site["df"] = dataframes.get(site["name"])
         if site["name"] == "quaidaa":
-            site["interpol"] = math.floor((60 * install_duration) / (len(site["df"])-1))
-        elif len(site["df"]) < (60 * install_duration):
-            site["interpol"] = math.floor((60 * install_duration) / len(site["df"]))
-        elif len(site["df"]) < (60 * frequency * install_duration):
-            site["interpol"] = 1 / math.floor(len(site["df"]) / (60 * install_duration))
+            site["interpol"] = math.floor(local_config["install_duration"] / (len(site["df"])-1))
+        elif len(site["df"]) < local_config["install_duration"]:
+            site["interpol"] = math.floor(local_config["install_duration"] / len(site["df"]))
+        elif len(site["df"]) < (frequency * local_config["install_duration"]):
+            site["interpol"] = 1 / math.floor(len(site["df"]) / local_config["install_duration"])
         else:
-            site["interpol"] = 1 / math.floor(len(site["df"]) / (60 * frequency * install_duration))
+            site["interpol"] = 1 / math.floor(len(site["df"]) / local_config["install_duration"])
         print(f'{site["name"]}, {site["interpol"]}')
 
     ableton_control.send_message('/live/song/start_playing', None)
@@ -358,6 +371,7 @@ def osc_sender():
             cfg = load_config()
             local_config = cfg
 
+        # restart at the end of the loop
         if restart:
             print("restart")
             restart = False
@@ -373,6 +387,7 @@ def osc_sender():
             addr_index = 0
             new_ableton_bundle = osc_bundle_builder.OscBundleBuilder(osc_bundle_builder.IMMEDIATELY)
             new_mad_bundle = osc_bundle_builder.OscBundleBuilder(osc_bundle_builder.IMMEDIATELY)
+            # reset OSC sends by sending first data of the next loop
             for site in sites:
                 for data in data_names1[site["name"]]:
                     addr = local_config["addresses"][addr_index]
@@ -388,7 +403,6 @@ def osc_sender():
                         new_mad_bundle.add_content(msg.build())
                     # print(f"[THREAD] Envoi {osc_addr} = {new_val}")
                     addr_index += 1
-
             new_ableton_bundle = new_ableton_bundle.build()
             if new_ableton_bundle.size > 16:
                 ableton_client.send(new_ableton_bundle)
@@ -399,27 +413,28 @@ def osc_sender():
             for site in sites:
                 site["df"] = dataframes.get(site["name"])
                 if site["name"] == "quaidaa":
-                    site["interpol"] = math.floor((60 * install_duration) / (len(site["df"]) - 1))
-                elif len(site["df"]) < (60 * install_duration):
-                    site["interpol"] = math.floor((60 * install_duration) / len(site["df"]))
-                elif len(site["df"]) < (60 * frequency * install_duration):
-                    site["interpol"] = 1 / math.floor(len(site["df"]) / (60 * install_duration))
+                    site["interpol"] = math.floor(local_config["install_duration"] / (len(site["df"]) - 1))
+                elif len(site["df"]) < local_config["install_duration"]:
+                    site["interpol"] = math.floor(local_config["install_duration"] / len(site["df"]))
+                elif len(site["df"]) < (frequency * local_config["install_duration"]):
+                    site["interpol"] = 1 / math.floor(len(site["df"]) / local_config["install_duration"])
                 else:
-                    site["interpol"] = 1 / math.floor(len(site["df"]) / (60 * frequency * install_duration))
+                    site["interpol"] = 1 / math.floor(len(site["df"]) / (frequency * local_config["install_duration"]))
                 print(f'{site["name"]}, {site["interpol"]}')
 
             time.sleep(2)
             ableton_control.send_message('/live/song/start_playing', None)
             start_time = int(time.strftime('%H')) * 3600 + int(time.strftime('%M')) * 60 + int(time.strftime('%S'))
 
+        # compute index for each dataframe based on the interpol value
         for site in sites:
             if site["name"] == "quaidaa":
                 site["index"] = min(min_time_index + 1, (len(site["df"]) - 1))
             elif site["interpol"] < 1:
                 site["index"] = min(sec_time_index*math.pow(site["interpol"], -1) + int((d_sec_time_index / (frequency / math.pow(site["interpol"], -1)))) % math.pow(site["interpol"], -1), (len(site["df"]) - 1))
-            elif site["interpol"] == 1 and len(site["df"]) > (60*install_duration):
+            elif site["interpol"] == 1 and len(site["df"]) > local_config["install_duration"]:
                 site["index"] = d_sec_time_index
-            elif site["interpol"] == 1 and len(site["df"]) <= (60*install_duration):
+            elif site["interpol"] == 1 and len(site["df"]) <= local_config["install_duration"]:
                 site["index"] = sec_time_index + 1
             elif site["interpol"] > 1:
                 site["index"] = min(math.floor(sec_time_index / site["interpol"]) + 1, len(site["df"]) - 1)
@@ -427,6 +442,8 @@ def osc_sender():
         addr_index = 0
         ableton_bundle = osc_bundle_builder.OscBundleBuilder(osc_bundle_builder.IMMEDIATELY)
         mad_bundle = osc_bundle_builder.OscBundleBuilder(osc_bundle_builder.IMMEDIATELY)
+        # send each data
+        # if interpol > 1, compute linear interpolation
         for site in sites:
             for data in data_names1[site["name"]]:
                 addr = local_config["addresses"][addr_index]
@@ -434,7 +451,7 @@ def osc_sender():
                 osc_addr = addr["osc_address"]
                 if site["interpol"] < 1:
                     val = site["df"][data][site["index"]]
-                elif site["interpol"] == 1 and len(site["df"]) > (60*install_duration):
+                elif site["interpol"] == 1 and len(site["df"]) > local_config["install_duration"]:
                     val = site["df"][data][site["index"]]
                 elif site["interpol"] >= 1:
                     val = site["df"][data][site["index"]-1] * (((site["interpol"]*frequency-1) - (d_sec_time_index % (site["interpol"]*frequency))) /
@@ -450,7 +467,6 @@ def osc_sender():
                     mad_bundle.add_content(msg.build())
                 # print(f"[THREAD] Envoi {osc_addr} = {new_val}")
                 addr_index += 1
-
         ableton_bundle = ableton_bundle.build()
         if ableton_bundle.size > 16:
             ableton_client.send(ableton_bundle)
@@ -459,10 +475,12 @@ def osc_sender():
             mad_client.send(mad_bundle)
 
         time.sleep(1 / frequency)
-        if current_time >= (start_time + (60 * install_duration) - 1):
+        # if end of loop, restart
+        # else, compute index for 1/frequency seconds, 1 second, 1 minute
+        if current_time >= (start_time + local_config["install_duration"] - 1):
             restart = True
         else:
-            d_sec_time_index = (d_sec_time_index + 1) % (60 * install_duration * frequency)
+            d_sec_time_index = (d_sec_time_index + 1) % (local_config["install_duration"] * frequency)
             sec_time_index = math.floor(d_sec_time_index / frequency)
             min_time_index = math.floor(sec_time_index / 60)
 
@@ -471,12 +489,32 @@ def osc_sender():
 @app.route("/", methods=["GET", "POST"])
 def index():
     conf = load_config()
+    # if POST, retrieve all data and change the config json
+    # raise error if issues with data
     if request.method == "POST":
+        error = False
+        response = {}
+        conf["install_duration"] = int(request.form["install_duration"])
         conf["ableton_port"] = int(request.form["ableton_port"])
         conf["madmapper_port"] = int(request.form["madmapper_port"])
+        if conf["ableton_port"] == conf["madmapper_port"]:
+            error = True
+            response = {
+                "error": "Bad request",
+                "message": "OSC port already in use.",
+                "status": 400
+            }
         new_addresses = []
         n = int(request.form["count"])
+        # rebuild array with all addresses and parameters
         for k in range(n):
+            if float(request.form[f"min_value_{k}"]) >= float(request.form[f"max_value_{k}"]):
+                error = True
+                response = {
+                    "error": "Bad request",
+                    "message": f'{request.form[f"name_{k}"]} min value is superior to max value.',
+                    "status": 400
+                }
             new_addresses.append({
                 "name": request.form[f"name_{k}"],
                 "osc_address": request.form[f"osc_address_{k}"],
@@ -491,8 +529,11 @@ def index():
             elif new_addresses[k]["from"] == -2:
                 new_addresses[k]["from"] = "none"
         conf["addresses"] = new_addresses
-        save_config(conf)
-        return redirect(url_for("index"))
+        if not error:
+            save_config(conf)
+            return redirect(url_for("index"))
+        else:
+            return jsonify(response, 400)
     return render_template("index.html", config=conf)
 
 
@@ -555,7 +596,7 @@ if __name__ == "__main__":
     # Dates et formats de base
     dates_dict = get_relative_dates()
 
-    # --- Sites & canaux ---
+    # --- Sites & channels ---
     sites = [
         {
             "name": "drogenbos",
@@ -671,21 +712,21 @@ if __name__ == "__main__":
 
     }
 
-    # --- Stockage des DataFrames ---
+    # --- DataFrames init ---
     dataframes = {}
 
     retrieve_data()
 
     config = load_config()
+    
+    # OSC clients
     ip = config["ip_address"]
     mad_port = int(config["madmapper_port"])
     ableton_port = int(config["ableton_port"])
-
-    # Clients OSC
     mad_client = udp_client.SimpleUDPClient(ip, mad_port)
     ableton_client = udp_client.SimpleUDPClient(ip, ableton_port)
     ableton_control = udp_client.SimpleUDPClient(ip, abletonOSC_port)
     ableton_control.send_message('/live/song/stop_playing', None)
 
-    # Lance Flask
+    # run Flask
     app.run(host="0.0.0.0", port=8000, debug=False)
