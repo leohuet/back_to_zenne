@@ -124,6 +124,28 @@ base_config = {
         }
     ]
 }
+data_names = {
+    "drogenbos": ["level"],
+    "viangros": ["temp"],
+    "viangros2": ["conduct", "acidity"],
+    "quaidaa": ["d_level", "g_level", "d_flowrate", "g_flowrate"],
+    "veterinaires": ["oxygen"],
+    "buda": ["flowrate"],
+    "senneOUT": ["temp"],
+    "senneOUT2": ["conduct", "acidity"]
+
+}
+data_names1 = {
+    "drogenbos": ["level"],
+    "viangros": ["temp"],
+    "viangros2": ["conduct", "acidity"],
+    "quaidaa": ["d_level", "d_flowrate"],
+    "veterinaires": ["oxygen"],
+    "buda": ["flowrate"],
+    "senneOUT": ["temp"],
+    "senneOUT2": ["conduct", "acidity"]
+
+}
 local_config = {}
 # only get new json data when the modification time changed
 old_getmtime = 1000
@@ -197,6 +219,99 @@ def get_relative_dates():
         "senneOUT2": times[4]
     }
 
+
+def get_sites(dates_dict):
+    return [
+        {
+            "name": "drogenbos",
+            "uid": "4A5190B93E170A87",
+            "histdata": "histdata0",
+            "channel": '"level"',
+            "from": dates_dict["hours"],
+            "until": dates_dict["current_date_h_min"],
+            "interpol": 0.0,
+            "df": None,
+            "index": 0
+        },
+        {
+            "name": "viangros",
+            "uid": "4B8483DD3257BAD9",
+            "histdata": "histdata0",
+            "channel": '"temp"',
+            "from": dates_dict["viangros"],
+            "until": dates_dict["date_end"],
+            "interpol": 0.0,
+            "df": None,
+            "index": 0
+        },
+        {
+            "name": "viangros2",
+            "uid": "4B8483DD3257BAD9",
+            "histdata": "histdata0",
+            "channel": '"conduct", "ph"',
+            "from": dates_dict["viangros2"],
+            "until": dates_dict["date_end"],
+            "interpol": 0.0,
+            "df": None,
+            "index": 0
+        },
+        {
+            "name": "quaidaa",
+            "uid": "9DD946B760E34493",
+            "histdata": "histdata0",
+            "channel": '"ch1", "ch9", "ch0", "ch8"',
+            "from": dates_dict["minutes"],
+            "until": dates_dict["current_date_h_min"],
+            "interpol": 0.0,
+            "df": None,
+            "index": 0
+        },
+        {
+            "name": "veterinaires",
+            "uid": "4A26A91BCA0FE58C",
+            "histdata": "histdata0",
+            "channel": '"xch4"',
+            "from": dates_dict["veterinaires"],
+            "until": dates_dict["date_end"],
+            "interpol": 0.0,
+            "df": None,
+            "index": 0
+        },
+        {
+            "name": "buda",
+            "uid": "A35E8E5A539949A7",
+            "histdata": "histdata5",
+            "channel": '"ch0"',
+            "from": dates_dict["hours"],
+            "until": dates_dict["current_date_h_min"],
+            "interpol": 0.0,
+            "df": None,
+            "index": 0
+        },
+        {
+            "name": "senneOUT",
+            "uid": "4B845F9C7151AC54",
+            "histdata": "histdata0",
+            "channel": '"temp"',
+            "from": dates_dict["senneOUT"],
+            "until": dates_dict["date_end"],
+            "interpol": 0.0,
+            "df": None,
+            "index": 0
+        },
+        {
+            "name": "senneOUT2",
+            "uid": "4B845F9C7151AC54",
+            "histdata": "histdata0",
+            "channel": '"conduct", "ph"',
+            "from": dates_dict["senneOUT2"],
+            "until": dates_dict["date_end"],
+            "interpol": 0.0,
+            "df": None,
+            "index": 0
+        },
+
+    ]
 
 def rolling_average(data_array, new_value):
     global size_mean
@@ -546,7 +661,20 @@ def reset_config():
 
 @app.route("/start_osc", methods=["POST"])
 def start_osc():
-    global osc_thread, osc_running
+    global osc_thread, osc_running, dates_dict, sites, dataframes, config
+    # Dates et formats de base
+    dates_dict = get_relative_dates()
+    # --- Sites & channels ---
+    sites = get_sites(dates_dict)
+    # --- DataFrames init ---
+    dataframes = {}
+
+    retrieve_data()
+
+    config = load_config()
+
+    time.sleep(1)
+
     if not osc_running:
         osc_running = True
         osc_thread = threading.Thread(target=osc_sender, daemon=True)
@@ -588,137 +716,18 @@ def test_osc(osc_index):
 
 
 if __name__ == "__main__":
-    # Open Ableton Live
-    # os.system('open "/Users/poire/Desktop/CODE/testQuitAbleton/test Project/test2.als"')
-    # time.sleep(20)
-    # Informations d'authentification
     CID = '9D9E9DE1F0E437A6'
     # Dates et formats de base
     dates_dict = get_relative_dates()
-
     # --- Sites & channels ---
-    sites = [
-        {
-            "name": "drogenbos",
-            "uid": "4A5190B93E170A87",
-            "histdata": "histdata0",
-            "channel": '"level"',
-            "from": dates_dict["hours"],
-            "until": dates_dict["current_date_h_min"],
-            "interpol": 0.0,
-            "df": None,
-            "index": 0
-        },
-        {
-            "name": "viangros",
-            "uid": "4B8483DD3257BAD9",
-            "histdata": "histdata0",
-            "channel": '"temp"',
-            "from": dates_dict["viangros"],
-            "until": dates_dict["date_end"],
-            "interpol": 0.0,
-            "df": None,
-            "index": 0
-        },
-        {
-            "name": "viangros2",
-            "uid": "4B8483DD3257BAD9",
-            "histdata": "histdata0",
-            "channel": '"conduct", "ph"',
-            "from": dates_dict["viangros2"],
-            "until": dates_dict["date_end"],
-            "interpol": 0.0,
-            "df": None,
-            "index": 0
-        },
-        {
-            "name": "quaidaa",
-            "uid": "9DD946B760E34493",
-            "histdata": "histdata0",
-            "channel": '"ch1", "ch9", "ch0", "ch8"',
-            "from": dates_dict["minutes"],
-            "until": dates_dict["current_date_h_min"],
-            "interpol": 0.0,
-            "df": None,
-            "index": 0
-        },
-        {
-            "name": "veterinaires",
-            "uid": "4A26A91BCA0FE58C",
-            "histdata": "histdata0",
-            "channel": '"xch4"',
-            "from": dates_dict["veterinaires"],
-            "until": dates_dict["date_end"],
-            "interpol": 0.0,
-            "df": None,
-            "index": 0
-        },
-        {
-            "name": "buda",
-            "uid": "A35E8E5A539949A7",
-            "histdata": "histdata5",
-            "channel": '"ch0"',
-            "from": dates_dict["hours"],
-            "until": dates_dict["current_date_h_min"],
-            "interpol": 0.0,
-            "df": None,
-            "index": 0
-        },
-        {
-            "name": "senneOUT",
-            "uid": "4B845F9C7151AC54",
-            "histdata": "histdata0",
-            "channel": '"temp"',
-            "from": dates_dict["senneOUT"],
-            "until": dates_dict["date_end"],
-            "interpol": 0.0,
-            "df": None,
-            "index": 0
-        },
-        {
-            "name": "senneOUT2",
-            "uid": "4B845F9C7151AC54",
-            "histdata": "histdata0",
-            "channel": '"conduct", "ph"',
-            "from": dates_dict["senneOUT2"],
-            "until": dates_dict["date_end"],
-            "interpol": 0.0,
-            "df": None,
-            "index": 0
-        },
-
-    ]
-
-    data_names = {
-        "drogenbos": ["level"],
-        "viangros": ["temp"],
-        "viangros2": ["conduct", "acidity"],
-        "quaidaa": ["d_level", "g_level", "d_flowrate", "g_flowrate"],
-        "veterinaires": ["oxygen"],
-        "buda": ["flowrate"],
-        "senneOUT": ["temp"],
-        "senneOUT2": ["conduct", "acidity"]
-
-    }
-    data_names1 = {
-        "drogenbos": ["level"],
-        "viangros": ["temp"],
-        "viangros2": ["conduct", "acidity"],
-        "quaidaa": ["d_level", "d_flowrate"],
-        "veterinaires": ["oxygen"],
-        "buda": ["flowrate"],
-        "senneOUT": ["temp"],
-        "senneOUT2": ["conduct", "acidity"]
-
-    }
-
+    sites = get_sites(dates_dict)
     # --- DataFrames init ---
     dataframes = {}
 
     retrieve_data()
 
     config = load_config()
-    
+
     # OSC clients
     ip = config["ip_address"]
     mad_port = int(config["madmapper_port"])
