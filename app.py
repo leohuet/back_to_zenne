@@ -26,8 +26,10 @@ base_config = {
         {
             "name": "drogenbos_level",
             "osc_address": "/drogenbos/1",
-            "min_value": 0.0,
-            "max_value": 1.0,
+            "min_ableton": 0.0,
+            "max_ableton": 1.0,
+            "min_mad": 0.0,
+            "max_mad": 1.0,
             "from": "realtime",
             "to_ableton": False,
             "to_mad": False
@@ -35,8 +37,10 @@ base_config = {
         {
             "name": "viangros_temp",
             "osc_address": "/viangros/1",
-            "min_value": 0.0,
-            "max_value": 1.0,
+            "min_ableton": 0.0,
+            "max_ableton": 1.0,
+            "min_mad": 0.0,
+            "max_mad": 1.0,
             "from": 10,
             "to_ableton": False,
             "to_mad": False
@@ -44,8 +48,10 @@ base_config = {
         {
             "name": "viangros_conduct",
             "osc_address": "/viangros/2",
-            "min_value": 0.0,
-            "max_value": 1.0,
+            "min_ableton": 0.0,
+            "max_ableton": 1.0,
+            "min_mad": 0.0,
+            "max_mad": 1.0,
             "from": 30,
             "to_ableton": False,
             "to_mad": False
@@ -53,8 +59,10 @@ base_config = {
         {
             "name": "viangros_ph",
             "osc_address": "/viangros/3",
-            "min_value": 0.0,
-            "max_value": 1.0,
+            "min_ableton": 0.0,
+            "max_ableton": 1.0,
+            "min_mad": 0.0,
+            "max_mad": 1.0,
             "from": "none",
             "to_ableton": False,
             "to_mad": False
@@ -62,8 +70,10 @@ base_config = {
         {
             "name": "quaidaa_level",
             "osc_address": "/quaidaa/1",
-            "min_value": 0.0,
-            "max_value": 1.0,
+            "min_ableton": 0.0,
+            "max_ableton": 1.0,
+            "min_mad": 0.0,
+            "max_mad": 1.0,
             "from": "realtime",
             "to_ableton": False,
             "to_mad": False
@@ -71,8 +81,10 @@ base_config = {
         {
             "name": "quaidaa_flowrate",
             "osc_address": "/quaidaa/2",
-            "min_value": 0.0,
-            "max_value": 1.0,
+            "min_ableton": 0.0,
+            "max_ableton": 1.0,
+            "min_mad": 0.0,
+            "max_mad": 1.0,
             "from": "realtime",
             "to_ableton": False,
             "to_mad": False
@@ -80,8 +92,10 @@ base_config = {
         {
             "name": "veterinaires_oxygen",
             "osc_address": "/veterinaires/1",
-            "min_value": 0.0,
-            "max_value": 1.0,
+            "min_ableton": 0.0,
+            "max_ableton": 1.0,
+            "min_mad": 0.0,
+            "max_mad": 1.0,
             "from": 7,
             "to_ableton": False,
             "to_mad": False
@@ -89,8 +103,10 @@ base_config = {
         {
             "name": "buda_flowrate",
             "osc_address": "/buda/1",
-            "min_value": 0.0,
-            "max_value": 1.0,
+            "min_ableton": 0.0,
+            "max_ableton": 1.0,
+            "min_mad": 0.0,
+            "max_mad": 1.0,
             "from": "realtime",
             "to_ableton": False,
             "to_mad": False
@@ -98,8 +114,10 @@ base_config = {
         {
             "name": "senneout_temp",
             "osc_address": "/senneout/1",
-            "min_value": 0.0,
-            "max_value": 1.0,
+            "min_ableton": 0.0,
+            "max_ableton": 1.0,
+            "min_mad": 0.0,
+            "max_mad": 1.0,
             "from": 10,
             "to_ableton": False,
             "to_mad": False
@@ -107,8 +125,10 @@ base_config = {
         {
             "name": "senneout_conduct",
             "osc_address": "/senneout/2",
-            "min_value": 0.0,
-            "max_value": 1.0,
+            "min_ableton": 0.0,
+            "max_ableton": 1.0,
+            "min_mad": 0.0,
+            "max_mad": 1.0,
             "from": 30,
             "to_ableton": False,
             "to_mad": False
@@ -116,8 +136,10 @@ base_config = {
         {
             "name": "senneout_ph",
             "osc_address": "/senneout/3",
-            "min_value": 0.0,
-            "max_value": 1.0,
+            "min_ableton": 0.0,
+            "max_ableton": 1.0,
+            "min_mad": 0.0,
+            "max_mad": 1.0,
             "from": "none",
             "to_ableton": False,
             "to_mad": False
@@ -506,15 +528,18 @@ def osc_sender():
             for site in sites:
                 for data in data_names1[site["name"]]:
                     addr = local_config["addresses"][addr_index]
-                    vmin, vmax = float(addr["min_value"]), float(addr["max_value"])
                     osc_addr = addr["osc_address"]
                     restart_val = float(site["df"][data][0])
-                    restart_new_val = restart_val * (vmax - vmin) + vmin
                     msg = osc_message_builder.OscMessageBuilder(address=osc_addr)
-                    msg.add_arg(restart_new_val)
                     if addr["to_ableton"]:
+                        vmin, vmax = float(addr["min_ableton"]), float(addr["max_ableton"])
+                        restart_new_val = restart_val * (vmax - vmin) + vmin
+                        msg.add_arg(restart_new_val)
                         new_ableton_bundle.add_content(msg.build())
                     elif addr["to_mad"]:
+                        vmin, vmax = float(addr["min_mad"]), float(addr["max_mad"])
+                        restart_new_val = restart_val * (vmax - vmin) + vmin
+                        msg.add_arg(restart_new_val)
                         new_mad_bundle.add_content(msg.build())
                     # print(f"[THREAD] Envoi {osc_addr} = {new_val}")
                     addr_index += 1
@@ -562,7 +587,6 @@ def osc_sender():
         for site in sites:
             for data in data_names1[site["name"]]:
                 addr = local_config["addresses"][addr_index]
-                vmin, vmax = float(addr["min_value"]), float(addr["max_value"])
                 osc_addr = addr["osc_address"]
                 if site["interpol"] < 1:
                     val = site["df"][data][site["index"]]
@@ -573,12 +597,16 @@ def osc_sender():
                             (site["interpol"]*frequency-1)) + site["df"][data][site["index"]] * ((d_sec_time_index % (site["interpol"]*frequency)) / (site["interpol"]*frequency-1))
                 else:
                     val = 0.5
-                new_val = val*(vmax-vmin)+vmin
                 msg = osc_message_builder.OscMessageBuilder(address=osc_addr)
-                msg.add_arg(new_val)
                 if addr["to_ableton"]:
+                    vmin, vmax = float(addr["min_ableton"]), float(addr["max_ableton"])
+                    new_val = val * (vmax - vmin) + vmin
+                    msg.add_arg(new_val)
                     ableton_bundle.add_content(msg.build())
                 if addr["to_mad"]:
+                    vmin, vmax = float(addr["min_mad"]), float(addr["max_mad"])
+                    new_val = val * (vmax - vmin) + vmin
+                    msg.add_arg(new_val)
                     mad_bundle.add_content(msg.build())
                 # print(f"[THREAD] Envoi {osc_addr} = {new_val}")
                 addr_index += 1
@@ -623,7 +651,14 @@ def index():
         n = int(request.form["count"])
         # rebuild array with all addresses and parameters
         for k in range(n):
-            if float(request.form[f"min_value_{k}"]) >= float(request.form[f"max_value_{k}"]):
+            if float(request.form[f"min_ableton_{k}"]) >= float(request.form[f"max_ableton_{k}"]):
+                error = True
+                response = {
+                    "error": "Bad request",
+                    "message": f'{request.form[f"name_{k}"]} min value is superior to max value.',
+                    "status": 400
+                }
+            if float(request.form[f"min_mad_{k}"]) >= float(request.form[f"max_mad_{k}"]):
                 error = True
                 response = {
                     "error": "Bad request",
@@ -633,8 +668,10 @@ def index():
             new_addresses.append({
                 "name": request.form[f"name_{k}"],
                 "osc_address": request.form[f"osc_address_{k}"],
-                "min_value": float(request.form[f"min_value_{k}"]),
-                "max_value": float(request.form[f"max_value_{k}"]),
+                "min_ableton": float(request.form[f"min_ableton_{k}"]),
+                "max_ableton": float(request.form[f"max_ableton_{k}"]),
+                "min_mad": float(request.form[f"min_ableton_{k}"]),
+                "max_mad": float(request.form[f"max_ableton_{k}"]),
                 "from": int(request.form[f"from_{k}"]),
                 "to_ableton": request.form.get(f"to_ableton_{k}") == "1",
                 "to_mad": request.form.get(f"to_mad_{k}") == "1"
@@ -699,20 +736,23 @@ def test_osc(osc_index):
     except IndexError:
         return jsonify({"error": "index invalide"}), 400
 
-    vmin, vmax = float(addr["min_value"]), float(addr["max_value"])
+    ableton_min, ableton_max = float(addr["min_ableton"]), float(addr["max_ableton"])
+    mad_min, mad_max = float(addr["min_mad"]), float(addr["max_mad"])
     osc_addr = addr["osc_address"]
 
-    val = (vmax + vmin) / 2
+    ableton_val = (ableton_min + ableton_max) / 2
+    mad_val = (mad_min + mad_max) / 2
     if addr["to_ableton"]:
-        ableton_client.send_message(osc_addr, val)
-        print(f"[TEST] to ableton, {osc_addr} = {val}")
+        ableton_client.send_message(osc_addr, ableton_val)
+        print(f"[TEST] to ableton, {osc_addr} = {ableton_val}")
+        return jsonify({"sent": True, "address": osc_addr, "value": ableton_val})
     elif addr["to_mad"]:
-        mad_client.send_message(osc_addr, val)
-        print(f"[TEST] to mad, {osc_addr} = {val}")
+        mad_client.send_message(osc_addr, mad_val)
+        print(f"[TEST] to mad, {osc_addr} = {mad_val}")
+        return jsonify({"sent": True, "address": osc_addr, "value": mad_val})
     else:
         print("Select an OSC output to send a test!")
-
-    return jsonify({"sent": True, "address": osc_addr, "value": val})
+        return jsonify({"error": "Select an OSC output to send a test!", "address": osc_addr})
 
 
 if __name__ == "__main__":

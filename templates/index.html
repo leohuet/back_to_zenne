@@ -36,10 +36,6 @@
                 <input type="text" name="name_{{ i }}" value="{{ addr.name }}">
                 <label>OSC address: </label>
                 <input type="text" name="osc_address_{{ i }}" value="{{ addr.osc_address }}">
-                <label>Min: </label>
-                <input type="number" step="any" min="0.0" name="min_value_{{ i }}" value="{{ addr.min_value }}">
-                <label>Max: </label>
-                <input type="number" step="any" min="0.1" name="max_value_{{ i }}" value="{{ addr.max_value }}">
                 {% if addr.from != "none" and addr.from != "realtime" %}
                 <label>From (in days): </label>
                 <input type="number" step="1" min="2" max="100" name="from_{{ i }}" value="{{ addr.from }}">
@@ -54,8 +50,18 @@
                 <br>
                 <label>send to Ableton :</label>
                 <input type="checkbox" name="to_ableton_{{ i }}" value="1" {% if addr.to_ableton %}checked{% endif %}>
+                <label>Min: </label>
+                <input type="number" step="any" min="0.0" name="min_ableton_{{ i }}" value="{{ addr.min_ableton }}">
+                <label>Max: </label>
+                <input type="number" step="any" min="0.1" name="max_ableton_{{ i }}" value="{{ addr.max_ableton }}">
+                <br>
                 <label>send to Madmapper :</label>
                 <input type="checkbox" name="to_mad_{{ i }}" value="1" {% if addr.to_mad %}checked{% endif %}>
+                <label>Min: </label>
+                <input type="number" step="any" min="0.0" name="min_mad_{{ i }}" value="{{ addr.min_mad }}">
+                <label>Max: </label>
+                <input type="number" step="any" min="0.1" name="max_mad_{{ i }}" value="{{ addr.max_mad }}">
+                <br>
                 <button type="button" class="testBtn" onclick="testOSC({{ i }})">💡 OSC test</button><br><br>
 
             </div>
