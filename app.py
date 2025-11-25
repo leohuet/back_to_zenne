@@ -670,8 +670,8 @@ def index():
                 "osc_address": request.form[f"osc_address_{k}"],
                 "min_ableton": float(request.form[f"min_ableton_{k}"]),
                 "max_ableton": float(request.form[f"max_ableton_{k}"]),
-                "min_mad": float(request.form[f"min_ableton_{k}"]),
-                "max_mad": float(request.form[f"max_ableton_{k}"]),
+                "min_mad": float(request.form[f"min_mad_{k}"]),
+                "max_mad": float(request.form[f"max_mad_{k}"]),
                 "from": int(request.form[f"from_{k}"]),
                 "to_ableton": request.form.get(f"to_ableton_{k}") == "1",
                 "to_mad": request.form.get(f"to_mad_{k}") == "1"
@@ -745,14 +745,14 @@ def test_osc(osc_index):
     if addr["to_ableton"]:
         ableton_client.send_message(osc_addr, ableton_val)
         print(f"[TEST] to ableton, {osc_addr} = {ableton_val}")
-        return jsonify({"sent": True, "address": osc_addr, "value": ableton_val})
-    elif addr["to_mad"]:
+    if addr["to_mad"]:
         mad_client.send_message(osc_addr, mad_val)
         print(f"[TEST] to mad, {osc_addr} = {mad_val}")
-        return jsonify({"sent": True, "address": osc_addr, "value": mad_val})
-    else:
+    if not addr["to_ableton"] and not addr["to_mad"]:
         print("Select an OSC output to send a test!")
         return jsonify({"error": "Select an OSC output to send a test!", "address": osc_addr})
+    else:
+        return jsonify({"sent": True, "address": osc_addr})
 
 
 if __name__ == "__main__":
