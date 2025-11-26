@@ -531,6 +531,7 @@ def osc_sender():
                     osc_addr = addr["osc_address"]
                     restart_val = float(site["df"][data][0])
                     msg = osc_message_builder.OscMessageBuilder(address=osc_addr)
+                    msg1 = osc_message_builder.OscMessageBuilder(address=osc_addr)
                     if addr["to_ableton"]:
                         vmin, vmax = float(addr["min_ableton"]), float(addr["max_ableton"])
                         restart_new_val = restart_val * (vmax - vmin) + vmin
@@ -539,8 +540,8 @@ def osc_sender():
                     elif addr["to_mad"]:
                         vmin, vmax = float(addr["min_mad"]), float(addr["max_mad"])
                         restart_new_val = restart_val * (vmax - vmin) + vmin
-                        msg.add_arg(restart_new_val)
-                        new_mad_bundle.add_content(msg.build())
+                        msg1.add_arg(restart_new_val)
+                        new_mad_bundle.add_content(msg1.build())
                     # print(f"[THREAD] Envoi {osc_addr} = {new_val}")
                     addr_index += 1
             new_ableton_bundle = new_ableton_bundle.build()
@@ -598,6 +599,7 @@ def osc_sender():
                 else:
                     val = 0.5
                 msg = osc_message_builder.OscMessageBuilder(address=osc_addr)
+                msg1 = osc_message_builder.OscMessageBuilder(address=osc_addr)
                 if addr["to_ableton"]:
                     vmin, vmax = float(addr["min_ableton"]), float(addr["max_ableton"])
                     new_val = val * (vmax - vmin) + vmin
@@ -606,8 +608,8 @@ def osc_sender():
                 if addr["to_mad"]:
                     vmin, vmax = float(addr["min_mad"]), float(addr["max_mad"])
                     new_val = val * (vmax - vmin) + vmin
-                    msg.add_arg(new_val)
-                    mad_bundle.add_content(msg.build())
+                    msg1.add_arg(new_val)
+                    mad_bundle.add_content(msg1.build())
                 # print(f"[THREAD] Envoi {osc_addr} = {new_val}")
                 addr_index += 1
         ableton_bundle = ableton_bundle.build()
