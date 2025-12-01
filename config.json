@@ -3,7 +3,7 @@
     "ip_address": "127.0.0.1",
     "ableton_port": 8001,
     "madmapper_port": 9001,
-    "smooth": 8,
+    "smooth": 10,
     "addresses": [
         {
             "name": "drogenbos_level",
@@ -13,19 +13,19 @@
             "min_mad": 0.0,
             "max_mad": 1.0,
             "from": "realtime",
-            "to_ableton": true,
+            "to_ableton": false,
             "to_mad": false
         },
         {
             "name": "viangros_temp",
-            "osc_address": "/medias/ColorPatterns/Speed",
+            "osc_address": "/viangros/1",
             "min_ableton": 0.0,
             "max_ableton": 1.0,
-            "min_mad": 1.0,
-            "max_mad": 2.0,
+            "min_mad": 0.0,
+            "max_mad": 1.0,
             "from": 10,
             "to_ableton": false,
-            "to_mad": true
+            "to_mad": false
         },
         {
             "name": "viangros_conduct",
