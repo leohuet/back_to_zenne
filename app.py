@@ -22,6 +22,7 @@ base_config = {
     "ip_address": "127.0.0.1",
     "ableton_port": 8001,
     "madmapper_port": 9001,
+    "smooth": 10,
     "addresses": [
         {
             "name": "drogenbos_level",
@@ -168,6 +169,36 @@ data_names1 = {
     "senneOUT2": ["conduct", "acidity"]
 
 }
+for_rolling_average = {
+    "drogenbos": {
+        "level": []
+    },
+    "viangros": {
+        "temp": []
+    },
+    "viangros2": {
+        "conduct": [],
+        "acidity": []
+    },
+    "quaidaa": {
+        "d_level": [],
+        "d_flowrate": []
+    },
+    "veterinaires": {
+        "oxygen": []
+    },
+    "buda": {
+        "flowrate": []
+    },
+    "senneOUT": {
+        "temp": []
+    },
+    "senneOUT2": {
+        "conduct": [],
+        "acidity": []
+    }
+}
+
 local_config = {}
 # only get new json data when the modification time changed
 old_getmtime = 1000
@@ -187,16 +218,11 @@ base64_message = base64_bytes.decode('ascii')
 my_headers = {"Authorization": "Basic " + base64_message}
 
 # rolling average variables
-size_mean = 2
-drogenbos_for_mean = []
-viangros_for_mean = []
-quaidaa_for_mean = []
-pluie_for_mean = []
-for i in range(size_mean):
-    drogenbos_for_mean.append(0.5)
-    viangros_for_mean.append(0.5)
-    quaidaa_for_mean.append(0.5)
-    pluie_for_mean.append(0.5)
+size_mean = 10
+for element in for_rolling_average:
+    for a in range(size_mean):
+        for data in for_rolling_average[element]:
+            for_rolling_average[element][data].append(0.5)
 
 
 def get_relative_dates():
@@ -212,7 +238,6 @@ def get_relative_dates():
         if address['from'] == "none" or address['from'] == "realtime":
             continue
         times.append((now - timedelta(days=address['from'])).strftime(fmt_day))
-        print(times)
 
     install_min_dur = math.ceil(date_config["install_duration"] / 60)
 
@@ -334,6 +359,7 @@ def get_sites(dates_dict):
         },
 
     ]
+
 
 def rolling_average(data_array, new_value):
     global size_mean
@@ -469,7 +495,7 @@ def save_config(config_dict):
 
 # === THREAD OSC ===
 def osc_sender():
-    global mad_client, ableton_client, old_getmtime, local_config, osc_running
+    global mad_client, ableton_client, old_getmtime, local_config, osc_running, for_rolling_average
     print("OSC thread démarré.")
     d_sec_time_index = 0
     sec_time_index = 0
@@ -602,12 +628,12 @@ def osc_sender():
                 msg1 = osc_message_builder.OscMessageBuilder(address=osc_addr)
                 if addr["to_ableton"]:
                     vmin, vmax = float(addr["min_ableton"]), float(addr["max_ableton"])
-                    new_val = val * (vmax - vmin) + vmin
+                    new_val = rolling_average(for_rolling_average[site["name"]][data], val * (vmax - vmin) + vmin)
                     msg.add_arg(new_val)
                     ableton_bundle.add_content(msg.build())
                 if addr["to_mad"]:
                     vmin, vmax = float(addr["min_mad"]), float(addr["max_mad"])
-                    new_val = val * (vmax - vmin) + vmin
+                    new_val = rolling_average(for_rolling_average[site["name"]][data], val * (vmax - vmin) + vmin)
                     msg1.add_arg(new_val)
                     mad_bundle.add_content(msg1.build())
                 # print(f"[THREAD] Envoi {osc_addr} = {new_val}")
@@ -633,6 +659,7 @@ def osc_sender():
 # === INTERFACE FLASK ===
 @app.route("/", methods=["GET", "POST"])
 def index():
+    global size_mean, for_rolling_average
     conf = load_config()
     # if POST, retrieve all data and change the config json
     # raise error if issues with data
@@ -642,6 +669,7 @@ def index():
         conf["install_duration"] = int(request.form["install_duration"])
         conf["ableton_port"] = int(request.form["ableton_port"])
         conf["madmapper_port"] = int(request.form["madmapper_port"])
+        conf["smooth"] = int(request.form["smooth"])
         if conf["ableton_port"] == conf["madmapper_port"]:
             error = True
             response = {
@@ -683,6 +711,42 @@ def index():
             elif new_addresses[k]["from"] == -2:
                 new_addresses[k]["from"] = "none"
         conf["addresses"] = new_addresses
+
+        # rolling average variables
+        for_rolling_average = {
+            "drogenbos": {
+                "level": []
+            },
+            "viangros": {
+                "temp": []
+            },
+            "viangros2": {
+                "conduct": [],
+                "acidity": []
+            },
+            "quaidaa": {
+                "d_level": [],
+                "d_flowrate": []
+            },
+            "veterinaires": {
+                "oxygen": []
+            },
+            "buda": {
+                "flowrate": []
+            },
+            "senneOUT": {
+                "temp": []
+            },
+            "senneOUT2": {
+                "conduct": [],
+                "acidity": []
+            }
+        }
+        size_mean = conf["smooth"]
+        for element in for_rolling_average:
+            for a in range(size_mean):
+                for data in for_rolling_average[element]:
+                    for_rolling_average[element][data].append(0.5)
         if not error:
             save_config(conf)
             return redirect(url_for("index"))

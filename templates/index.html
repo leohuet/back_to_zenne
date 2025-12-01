@@ -24,6 +24,8 @@
         <input type="number" name="madmapper_port" value="{{ config.madmapper_port }}"><br><br>
         <label>Ableton OSC port: </label>
         <input type="number" name="ableton_port" value="{{ config.ableton_port }}"><br><br>
+        <label>Smooth on data: </label>
+        <input type="number" min="1" max="20" name="smooth" value="{{ config.smooth }}"><br><br>
 
         <h2>Data processing</h2>
         <!-- Data parameters (for each data = OSC, min, max, duration for API call) -->
