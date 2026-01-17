@@ -843,5 +843,12 @@ if __name__ == "__main__":
     ableton_control = udp_client.SimpleUDPClient(ip, abletonOSC_port)
     ableton_control.send_message('/live/song/stop_playing', None)
 
+    time.sleep(1)
+
+    if not osc_running:
+        osc_running = True
+        osc_thread = threading.Thread(target=osc_sender, daemon=True)
+        osc_thread.start()
+
     # run Flask
     app.run(host="0.0.0.0", port=8000, debug=False)
