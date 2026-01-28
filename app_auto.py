@@ -207,6 +207,7 @@ old_getmtime = 1000
 abletonOSC_port = 11000
 osc_thread = None
 osc_running = False
+mad_timeline_control = True
 
 # --- Authentification ---
 user = os.getenv("FLOWBRU_USER")
@@ -525,6 +526,8 @@ def osc_sender():
         print(f'{site["name"]}, {site["interpol"]}')
 
     ableton_control.send_message('/live/song/start_playing', None)
+    if mad_timeline_control:
+        mad_client.send_message('/timelines/editor/play', None)
     start_time = int(time.strftime('%H')) * 3600 + int(time.strftime('%M')) * 60 + int(time.strftime('%S'))
 
     while osc_running:
@@ -545,7 +548,9 @@ def osc_sender():
             time.sleep(5)
 
             ableton_control.send_message('/live/song/stop_playing', None)
-            time.sleep(1)
+            if mad_timeline_control:
+                mad_client.send_message('/timelines/editor/stop', None)
+            time.sleep(.1)
             ableton_control.send_message('/live/song/stop_playing', None)
             addr_index = 0
             new_ableton_bundle = osc_bundle_builder.OscBundleBuilder(osc_bundle_builder.IMMEDIATELY)
@@ -591,6 +596,8 @@ def osc_sender():
 
             time.sleep(2)
             ableton_control.send_message('/live/song/start_playing', None)
+            if mad_timeline_control:
+                mad_client.send_message('/timelines/editor/play', None)
             start_time = int(time.strftime('%H')) * 3600 + int(time.strftime('%M')) * 60 + int(time.strftime('%S'))
 
         # compute index for each dataframe based on the interpol value
@@ -790,6 +797,10 @@ def stop_osc():
     global osc_running
     osc_running = False
     ableton_control.send_message('/live/song/stop_playing', None)
+    if mad_timeline_control:
+        mad_client.send_message('/timelines/editor/stop', None)
+    time.sleep(.1)
+    ableton_control.send_message('/live/song/stop_playing', None)
     return redirect(url_for("index"))
 
 
@@ -842,6 +853,8 @@ if __name__ == "__main__":
     ableton_client = udp_client.SimpleUDPClient(ip, ableton_port)
     ableton_control = udp_client.SimpleUDPClient(ip, abletonOSC_port)
     ableton_control.send_message('/live/song/stop_playing', None)
+    if mad_timeline_control:
+        mad_client.send_message("/timelines/editor/stop", None)
 
     time.sleep(1)
 
